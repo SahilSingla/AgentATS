@@ -9,7 +9,6 @@ var SEARCH_LABEL = 'Applications';
 var DONE_LABEL   = 'AgentATS-Done';
 var APPLY_DAILY_CAP = 200;
 var MAX_RESUME_MB   = 5;
-var GEMINI_MODEL = 'gemini-2.5-flash';
 
 // ---------- SECURITY LAYER (fixes C-1, C-2, C-3) ----------
 // The web app must stay deployed "Execute as: me / Who has access: Anyone" so the public
@@ -134,11 +133,11 @@ function suggestInterviewPlan(reqId) {
   var rq = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions').getDataRange().getValues();
   var title = '', level = '';
   for (var i = 1; i < rq.length; i++) if ((rq[i][0] || '').toString() === reqId.toString()) { title = rq[i][1]; level = rq[i][6]; break; }
-  return callGemini('Design a structured interview loop for a ' + (level || '') + ' ' + (title || 'role') +
+  return callAI_('interview_questions', 'Design a structured interview loop for a ' + (level || '') + ' ' + (title || 'role') +
     '. Return ONLY JSON: {"rounds":[{"name":"","type":"","competencies":["",""]}]}. 4-6 rounds in the order they ' +
     'should happen, PLUS a final round named "Debrief" (type debrief, competencies: consolidate scores, hire decision). ' +
     'Types from screen/technical/case/behavioral/panel/hiring_manager/debrief; 3-5 competencies per round; grounded in ' +
-    'I/O psychology and role norms (Stripe/FAANG style).', true);
+    'I/O psychology and role norms (Stripe/FAANG style).', true, aiFields_({ rounds: 'array' }));
 }
 function saveReqPlan(reqId, planJson) {
   var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
@@ -166,7 +165,7 @@ function scoreSourced_(items, jd) {
   if (!items.length) return;
   var list = items.map(function (p, i) { return (i + 1) + '. ' + (p.author || '') + ': ' + (p.text || '').substring(0, 500); }).join('\n\n');
   try {
-    var arr = JSON.parse(callGemini('Score each candidate snippet 0-100 for fit against this job. Return ONLY a JSON array of numbers in order.\nJOB: ' + jd + '\n\nCANDIDATES:\n' + list, true));
+    var arr = JSON.parse(callAI_('cv_scoring', 'Score each candidate snippet 0-100 for fit against this job. Return ONLY a JSON array of numbers in order.\nJOB: ' + jd + '\n\nCANDIDATES:\n' + list, true, function (x) { return Array.isArray(x) && x.length === items.length && x.every(function (n) { return typeof n === 'number' && isFinite(n) && n >= 0 && n <= 100; }); }));
     items.forEach(function (p, i) { p.score = (typeof arr[i] === 'number') ? arr[i] : ''; });
   } catch (e) { items.forEach(function (p) { p.score = ''; }); }
 }
@@ -512,7 +511,7 @@ function processMessage(message) {
   try {
     var u = currentUser_(arguments);
     if (!u.role) return "🔒 Your account (" + u.email + ") doesn't have access yet. Ask your admin to add you to the Users tab.";
-    var parsed = JSON.parse(callGemini(buildIntentPrompt(message), true));
+    var parsed = JSON.parse(callAI_('processMessage', buildIntentPrompt(message), true, aiFields_({ intent: 'string' })));
     var intent = (parsed.intent === 'unknown' || !parsed.intent) ? 'help' : parsed.intent;
     if (intent !== 'help' && !allowed_(u.role, intent))
       return "🔒 Sorry " + u.name + " — your role (" + u.role + ") can't do that action.";
@@ -615,7 +614,7 @@ function polishFeedback(raw, candId) {
     'Preserve every point, all the detail, the interviewer\'s own meaning, structure, ordering and length. ' +
     'Do NOT summarize, shorten, condense, reorganize, add opinions, or invent anything. Keep it the same length and number of points as the original — if they wrote 15 lines, return ~15 lines. ' +
     'Return ONLY the polished notes as plain text (no preamble, no JSON).\n\nINTERVIEWER NOTES:\n' + raw;
-  var out; try { out = callGemini(prompt, false); } catch (e) { return { error: e.message }; }
+  var out; try { out = callAI_('polishFeedback', prompt, false); } catch (e) { return { error: e.message }; }
   return { text: (out || '').toString().trim() };
 }
 function saveInterviewFeedback(o) {
@@ -655,7 +654,7 @@ function generateDebrief(candId) {
     'Return ONLY JSON: {"overall_recommendation":"","confidence":"","key_strengths":[],"key_concerns":[],"rationale":"","suggested_decision":""}. ' +
     'overall_recommendation one of Strong Yes/Yes/Lean Yes/Lean No/No/Strong No; suggested_decision one of "Advance","Hold","Reject"; ' +
     'rationale = 3-5 sentences citing the panel and surfacing any disagreement. Be balanced.\n\nFEEDBACK:\n' + lines;
-  var j = {}; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { j = { overall_recommendation: '', confidence: '', key_strengths: [], key_concerns: [], rationale: 'Could not auto-summarize — review the panel below.', suggested_decision: '' }; }
+  var j = {}; try { j = JSON.parse(callAI_('generateDebrief', prompt, true, aiFields_({ overall_recommendation: 'string', confidence: 'string', key_strengths: 'array', key_concerns: 'array', rationale: 'string', suggested_decision: 'string' }))); } catch (e) { j = { overall_recommendation: '', confidence: '', key_strengths: [], key_concerns: [], rationale: 'Could not auto-summarize — review the panel below.', suggested_decision: '' }; }
   var nums = fbs.map(function (f) { return parseFloat(f.rating); }).filter(function (x) { return !isNaN(x); });
   var avg = nums.length ? (nums.reduce(function (a, b) { return a + b; }, 0) / nums.length).toFixed(1) : '';
   return { name: name, count: fbs.length, avgRating: avg, panel: fbs,
@@ -733,10 +732,10 @@ function importFeedbackFromEmail() {
     var body = (m.getPlainBody() || '').slice(0, 6000), subj = m.getSubject() || '', from = m.getFrom() || '';
     var j = null;
     try {
-      j = JSON.parse(callGemini('Extract interview feedback from this email. Return ONLY JSON: ' +
+      j = JSON.parse(callAI_('importFeedbackFromEmail', 'Extract interview feedback from this email. Return ONLY JSON: ' +
         '{"candidate_name":"","candidate_email":"","interviewer":"","stage":"","rating":"","recommendation":"","strengths":[],"concerns":[],"summary":""}. ' +
         'recommendation one of Strong Yes/Yes/Lean Yes/Lean No/No/Strong No; rating 1-5; summary = formal 2-4 sentences. ' +
-        'Subject: ' + subj + '\nFrom: ' + from + '\nBody:\n' + body, true));
+        'Subject: ' + subj + '\nFrom: ' + from + '\nBody:\n' + body, true, aiFields_({ candidate_name: 'string', candidate_email: 'string', strengths: 'array', concerns: 'array', summary: 'string' })));
     } catch (e) { j = null; }
     // H-4 FIX: unparseable / unmatchable feedback is never destroyed any more. The raw email
     // text is stored in the Interview Feedback sheet flagged for review, so a human can attach
@@ -927,7 +926,7 @@ function queryStatus(o) {
   var data = 'STAGE COUNTS: ' + summary + '\nTOTAL CANDIDATES: ' + rows.length +
     '\n\nCANDIDATES (Name | Role | Stage | Score | Req | Current Company | Experience | Skills | Current CTC | Expected CTC | Notice | Location):\n' +
     (rows.join('\n') || '(no candidates yet)');
-  return callGemini('You are a recruiting analytics assistant. Use ONLY the data below. Give specific numbers and names. ' +
+  return callAI_('queryStatus', 'You are a recruiting analytics assistant. Use ONLY the data below. Give specific numbers and names. ' +
     'For "compare", lay the candidates side by side on the relevant fields and end with a recommendation. ' +
     'For pipeline / "how many", report the per-stage counts. Be concise and friendly.\n\n' +
     data + '\n\nQUESTION: ' + (o.query || 'summarize the pipeline'), false);
@@ -967,7 +966,7 @@ function candidateStory(o) {
   });
   var ctx = 'CANDIDATE PROFILE:\n' + JSON.stringify(profile) + '\n\nREQUISITION: ' + req +
     '\n\nINTERVIEW FEEDBACK (' + fbs.length + ' submitted):\n' + (fbs.length ? JSON.stringify(fbs) : 'none yet');
-  return callGemini('You are a senior recruiter writing a candidate brief for a hiring decision. Using ONLY the data below, ' +
+  return callAI_('candidateStory', 'You are a senior recruiter writing a candidate brief for a hiring decision. Using ONLY the data below, ' +
     'write a clear, structured story: (1) Snapshot — role, experience, current company, location, comp/notice. ' +
     '(2) Fit for the requisition. (3) Interview performance — synthesise feedback across interviewers: strengths, concerns, ' +
     'and any disagreement between them. (4) A clear recommendation. Be specific and evidence-based; ignore gender and other ' +
@@ -1012,36 +1011,11 @@ function draftDecisionEmail_(name, role, stage) {
   var prompt = (stage === 'selected')
     ? 'Write a short, warm, professional email to ' + name + ' letting them know they are moving forward for the ' + (role || 'role') + ' after strong interviews, next steps to follow. Return ONLY JSON {"subject":"","body":""}.'
     : 'Write a short, kind, respectful rejection email to ' + name + ' for the ' + (role || 'role') + '. Warm, brief, leaves the door open. Return ONLY JSON {"subject":"","body":""}.';
-  return JSON.parse(callGemini(prompt, true));
+  return JSON.parse(callAI_('draftDecisionEmail', prompt, true, aiFields_({ subject: 'string', body: 'string' })));
 }
 function isInterviewStage_(stage) { var s = (stage || '').toString().toLowerCase(); return s.indexOf('interview') > -1 || s === 'debrief'; }
 
-// ---------- AI / GEMINI ----------
-function geminiRequest_(payloadObj) {
-  var key = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY');
-  if (!key) throw new Error('GEMINI_KEY not set in Script Properties.');
-  var models = [GEMINI_MODEL, 'gemini-2.5-flash-lite'], lastErr = '';
-  for (var m = 0; m < models.length; m++) {
-    var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + models[m] + ':generateContent';
-    var opts = { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key },
-                 payload: JSON.stringify(payloadObj), muteHttpExceptions: true };
-    for (var i = 0; i < 3; i++) {
-      var res = UrlFetchApp.fetch(url, opts), code = res.getResponseCode(), data;
-      try { data = JSON.parse(res.getContentText()); } catch (e) { data = {}; }
-      if (data.candidates && data.candidates[0]) return data.candidates[0].content.parts[0].text;
-      lastErr = (data.error && data.error.message) || ('HTTP ' + code);
-      if ((code === 429 || code === 500 || code === 503) && i < 2) { Utilities.sleep(1200 * (i + 1)); continue; }
-      break;
-    }
-  }
-  if (/quota|429|503|overload|busy|unavailable|resource/i.test(lastErr))
-    throw new Error('The AI is briefly busy — please try again in a few seconds.');
-  throw new Error('AI error: ' + lastErr.toString().slice(0, 180));
-}
-function callGemini(prompt, jsonMode) {
-  var cfg = { temperature: 0.1 }; if (jsonMode) cfg.responseMimeType = 'application/json';
-  return geminiRequest_({ contents: [{ parts: [{ text: prompt }] }], generationConfig: cfg });
-}
+// ---------- DOCUMENT PARSING (transport in AiGateway.gs) ----------
 function parseDocument_(base64Data, mimeType) {
   var prompt = 'Classify this document and extract fields. Return ONLY JSON. ' +
     'If a candidate resume/CV: {"doc_type":"resume","name":"","first_name":"","middle_name":"","last_name":"","email":"","phone":"","current_location":"","current_company":"","current_title":"","total_experience":"","skills":"","highest_qualification":"","linkedin":"","github":"","highlights":""}. github = the candidate\'s GitHub profile URL or username if present (look for github.com/...). ' +
@@ -1053,13 +1027,11 @@ function parseDocument_(base64Data, mimeType) {
   var m = (mimeType || '').toLowerCase();
   var isPdf = m.indexOf('pdf') > -1, isImg = m.indexOf('image/') > -1 || /png|jpe?g|gif|webp/.test(m);
   if (isPdf || isImg) {
-    return geminiRequest_({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mimeType, data: base64Data } }] }],
-                            generationConfig: { temperature: 0, responseMimeType: 'application/json' } });
+    return aiDocument_('cv_parsing', prompt, base64Data, mimeType, aiDocumentValid_);
   }
   // Any other format (Word, PowerPoint, ODT, RTF, TXT, etc.): convert via Drive → export PDF → read.
   var pdfB64 = convertToPdfB64_(base64Data, mimeType);
-  return geminiRequest_({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: 'application/pdf', data: pdfB64 } }] }],
-                          generationConfig: { temperature: 0, responseMimeType: 'application/json' } });
+  return aiDocument_('cv_parsing', prompt, pdfB64, 'application/pdf', aiDocumentValid_);
 }
 function convertToPdfB64_(base64Data, mimeType) {
   if (typeof Drive === 'undefined' || !Drive.Files) throw new Error('Drive API service not enabled (Services → + → Drive API).');
@@ -1324,7 +1296,7 @@ function getBenchmark(reqId, regenerate) {
     'Role: ' + (s.title || reqId) + ' · Level: ' + (s.level || 'n/a') + ' · ' + (s.lob || '') + '.\n' +
     'Return ONLY JSON: {"ideal_profile":"","by_level":"","must_have_signals":[],"red_flags":[],"sample_questions":[]}. ' +
     'ideal_profile=2-3 sentences on a strong candidate; by_level=how the bar shifts with seniority; must_have_signals=8-12 concrete resume signals of a strong hire; red_flags=resume signals of a weak fit; sample_questions=6-8 representative interview questions for this role.';
-  var j; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { return { error: e.message }; }
+  var j; try { j = JSON.parse(callAI_('interview_questions', prompt, true, aiFields_({ ideal_profile: 'string', by_level: 'string', must_have_signals: 'array', red_flags: 'array', sample_questions: 'array' }))); } catch (e) { return { error: e.message }; }
   sh.getRange(row, 25).setValue(JSON.stringify(j));
   return j;
 }
@@ -1374,7 +1346,7 @@ function recommendJobArch(companyType, track) {
   var org = orgContext_();
   var prompt = 'You are a compensation & leveling expert. Propose a MARKET-STANDARD job architecture for a "' + (companyType || 'technology') + '" company' + (org.company ? ' like ' + org.company : '') + ', for ' + (track === 'nontech' ? 'NON-TECH (sales, marketing, ops, finance, HR, product, etc.)' : 'TECH (engineering, data, ML, product, design, etc.)') + ' roles, grounded in how leading companies of this type structure their ladders.\n' +
     'Return ONLY JSON: {"families":[{"family":"","levels":[{"level":"","minYears":0,"maxYears":0,"scope":""}]}]}. 3-6 job families typical for this company type & track; each with 4-7 levels from entry to senior/leadership; minYears/maxYears = typical RELEVANT-experience band per level; scope = one short line on expected scope/impact at that level.';
-  var j; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { return { error: e.message }; }
+  var j; try { j = JSON.parse(callAI_('recommendJobArch', prompt, true, aiFields_({ families: 'array' }))); } catch (e) { return { error: e.message }; }
   return { families: j.families || [] };
 }
 function jobArchText_() {
@@ -1441,7 +1413,7 @@ function getSuccessProfile(reqId, regen) {
     'Role: ' + (s.title || reqId) + ' · Level: ' + (s.level || 'n/a') + ' · ' + (s.lob || '') + '.\nJD: ' + jd.slice(0, 1400) + '\nCalibrated must-haves: ' + ((brief.must_haves || []).join('; ') || '(none)') + '\n\n' + JOB_ARCHITECTURE + (jobArchText_() ? '\n\n' + jobArchText_() : '') + '\n\n' + RANK_SIGNALS + (servicesMode_() ? '\n\n' + SERVICES_SIGNALS : '') + '\n\n' +
     'Return ONLY JSON: {"exp_min":0,"exp_ideal":0,"exp_max":0,"core_skills":[],"nice_skills":[],"typical_titles":[],"typical_companies":[],"competitor_companies":[],"domains":[],"signals_to_weight":[],"red_flags":[],"market_note":"","summary":""}. signals_to_weight=the 4-6 signals above that matter MOST for THIS role/company type. competitor_companies=8-15 named companies that are direct competitors OR of very similar nature/domain to this employer (candidates from these are high-value). domains=the specific domains relevant here (e.g. for AI roles: NLP/CV/LLMs/RecSys/fintech-AI/etc.). ' +
     'exp_* = years of RELEVANT experience (min acceptable, ideal, max before over-qualified) calibrated to this seniority and market norms. core_skills=8-12 differentiating skills/competencies of a strong hire. typical_titles & typical_companies = titles/orgs strong candidates usually come from in this industry. domains=relevant domains. red_flags=resume signals of a weak fit. market_note=1-2 sentences on what the market (levels.fyi/Glassdoor/Blind) signals separate strong vs weak here. summary=2-3 sentence portrait of a top hire.';
-  var j; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { return { error: e.message }; }
+  var j; try { j = JSON.parse(callAI_('getSuccessProfile', prompt, true, aiFields_({ exp_min: 'number', exp_ideal: 'number', exp_max: 'number', core_skills: 'array', nice_skills: 'array', typical_titles: 'array', typical_companies: 'array', competitor_companies: 'array', domains: 'array', signals_to_weight: 'array', red_flags: 'array', market_note: 'string', summary: 'string' }))); } catch (e) { return { error: e.message }; }
   try { ensureReqExtraHeaders_(sh); sh.getRange(row, 27).setValue(JSON.stringify(j)); } catch (e) {} // M-2
   bustCache_();
   return j;
@@ -1463,7 +1435,7 @@ function addSuccessVoice(reqId, base64, fileName, mimeType) {
   var u = currentUser_(arguments); if (u.role !== 'Admin' && u.role !== 'Recruiter') return { error: '🔒 Only recruiters/admins.' };
   var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'), row = findReqRow_(sh, reqId); if (row < 0) return { error: 'Requisition not found.' };
   var prompt = 'Transcribe this audio of a recruiter/hiring manager describing the ideal-candidate SUCCESS PROFILE (domain specifics, must-have experience, what "great" looks like — especially for AI/niche or newly-evolving roles). Return ONLY JSON: {"transcript":""}.';
-  var raw; try { raw = geminiRequest_({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mimeType, data: base64 } }] }], generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }); }
+  var raw; try { raw = aiDocument_('audio_transcription', prompt, base64, mimeType, aiFields_({ transcript: 'string' })); }
   catch (e) { return { error: 'Transcription failed (try mp3/m4a/wav): ' + e.message }; }
   var t = ''; try { t = (JSON.parse(raw).transcript || '').toString(); } catch (e) { t = raw; }
   var prev = (sh.getRange(row, 28).getValue() || '').toString();
@@ -1515,7 +1487,7 @@ function rankProfiles_(reqId, cands, deep) {
   }
   var rankMap = {}, aiErr = '';
   if (!cross) {
-    try { var j = JSON.parse(callGemini(prompt, true)); (j.ranking || []).forEach(function (r) { var idx = parseInt((r.id || '').toString().replace(/[^0-9]/g, ''), 10); if (!isNaN(idx)) rankMap[idx] = { score: Math.max(0, Math.min(100, Number(r.score) || 0)), reason: (r.reason || '').toString() }; }); } catch (e) { aiErr = e.message || 'AI call failed'; }
+    try { var j = JSON.parse(callAI_('cv_scoring', prompt, true, aiRankingValid_(pool.length))); (j.ranking || []).forEach(function (r) { var idx = parseInt((r.id || '').toString().replace(/[^0-9]/g, ''), 10); if (!isNaN(idx)) rankMap[idx] = { score: Math.max(0, Math.min(100, Number(r.score) || 0)), reason: (r.reason || '').toString() }; }); } catch (e) { aiErr = e.message || 'AI call failed'; }
     // H-7 FIX: if the listwise AI call failed or returned unusable JSON, every candidate would
     // get an LLM score of 0 and the UI would confidently present bogus ~10–25% "rankings".
     // Surface an explicit error instead — no fake scores are ever produced.
@@ -1545,14 +1517,9 @@ function rankProfiles_(reqId, cands, deep) {
   return { ranked: out, count: out.length, hasMust: !!must.length, engine: engine, sp: { exp_min: emin, exp_ideal: eideal, exp_max: emax, summary: sp.summary || '', market_note: sp.market_note || '', core_skills: (sp.core_skills || []), typical_titles: (sp.typical_titles || []) } };
 }
 function embed_(text) {
-  var key = PropertiesService.getScriptProperties().getProperty('GEMINI_KEY'); if (!key) return null;
   text = (text || '').toString().slice(0, 8000); if (!text.trim()) return null;
-  try {
-    var res = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent',
-      { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, muteHttpExceptions: true,
-        payload: JSON.stringify({ model: 'models/text-embedding-004', content: { parts: [{ text: text }] } }) });
-    var d = JSON.parse(res.getContentText()); return (d.embedding && d.embedding.values) || null;
-  } catch (e) { return null; }
+  try { return JSON.parse(aiRequest_('embedding', { prompt: text, embedding: true })); }
+  catch (e) { return null; }
 }
 function cosine_(a, b) { if (!a || !b || a.length !== b.length) return null; var dot = 0, na = 0, nb = 0; for (var i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; } if (!na || !nb) return null; return dot / (Math.sqrt(na) * Math.sqrt(nb)); }
 function semanticRelevance_(reqId, candText) {
@@ -1581,7 +1548,7 @@ function fitScore(candId) {
     'Return ONLY JSON: {"components":{"skills":0,"domain":0,"problem_solving":0,"pedigree":0,"impact":0,"certs":0,"stability":0,"logistics":0},"must_have_coverage":[{"item":"","met":true}],"strengths":[],"gaps":[],"interview_focus":[],"summary":""}. ' +
     'Each component 0-100: skills=tech/skill match to the role; domain=relevant domain experience; problem_solving=problem-solving & system-design depth; pedigree=company & education quality; impact=ownership & role progression; certs=certifications/regulatory fit; stability=tenure/job stability; logistics=notice period, CTC reasonableness and relocation fit. ' +
     'CRITICAL: role relevance is the primary gate. If the candidate\'s background is clearly NOT relevant to THIS role (e.g., a non-engineering / unrelated-domain profile applying to an engineering role), you MUST score skills and domain near 0. Never reward an irrelevant candidate on pedigree, stability, or logistics.';
-  var j; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { return { error: e.message }; }
+  var j; try { j = JSON.parse(callAI_('cv_scoring', prompt, true, aiFitValid_)); } catch (e) { return { error: e.message }; }
   var comp = j.components || {}, W = cfg.weights || {}, totW = 0, acc = 0, rows = [];
   FIT_KEYS.forEach(function (k) { var w = Number(W[k] || 0), s = Math.max(0, Math.min(100, Number(comp[k] || 0))); totW += w; acc += s * w; rows.push({ key: k, label: FIT_LABELS[k], score: Math.round(s), weight: w, contribution: 0 }); });
   var weighted = totW ? Math.round(acc / totW) : 0;
@@ -1609,7 +1576,7 @@ function inferSkills(candId) {
   var prompt = 'You are a skills-taxonomy assistant grounded in ESCO and O*NET occupational skill relationships. Infer this candidate\'s skill profile.\n' +
     'Title: ' + (r[18] || '') + '\nExperience: ' + (r[19] || '') + ' yrs\nListed skills: ' + (r[20] || '') + '\n' +
     'Return ONLY JSON: {"explicit":[],"implied":[],"adjacent":[],"seniority":""}. explicit=skills clearly stated; implied=skills strongly implied by their role/stack but not explicitly listed; adjacent=closely related skills they could ramp into quickly (ESCO/O*NET adjacency); seniority=one of Junior/Mid/Senior/Lead/Principal with a one-line rationale. Max 10 items per list.';
-  var j; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { return { error: e.message }; }
+  var j; try { j = JSON.parse(callAI_('inferSkills', prompt, true, aiFields_({ explicit: 'array', implied: 'array', adjacent: 'array', seniority: 'string' }))); } catch (e) { return { error: e.message }; }
   return { explicit: j.explicit || [], implied: j.implied || [], adjacent: j.adjacent || [], seniority: j.seniority || '' };
 }
 // ---------- SKILLS-GRAPH MATCH (entity graph + adjacency + explainable coverage) ----------
@@ -1848,7 +1815,7 @@ function reqBrief(reqId) {
   var brief = {}; try { var cal = getCalibration(reqId); brief = (cal && cal.brief) || {}; } catch (e) {}
   var pl = []; try { pl = getReqPipeline(reqId); } catch (e) {}
   var lines = pl.map(function (c) { return '- ' + c.name + ': ' + (c.title || '') + ' @ ' + (c.company || '') + ', ' + (c.exp || '') + 'y, skills: ' + (c.skills || '') + ', stage: ' + c.stage + ', keyword-match ' + (c.match != null ? c.match + '%' : 'n/a'); }).join('\n');
-  return callGemini('You are a recruiting lead giving a spoken briefing to a hiring manager about requisition "' + (s.title || reqId) + '". Use ONLY the data. Keep it tight and natural to read aloud (~150 words): (1) the role in one line, (2) the must-haves, (3) the strongest candidates and why — rank the top 3, (4) who to drop and why, (5) recommended next steps.\n' +
+  return callAI_('reqBrief', 'You are a recruiting lead giving a spoken briefing to a hiring manager about requisition "' + (s.title || reqId) + '". Use ONLY the data. Keep it tight and natural to read aloud (~150 words): (1) the role in one line, (2) the must-haves, (3) the strongest candidates and why — rank the top 3, (4) who to drop and why, (5) recommended next steps.\n' +
     'MUST-HAVES: ' + ((brief.must_haves || []).join('; ') || '(none set)') + '\nCANDIDATES:\n' + (lines || '(none added yet)'), false);
 }
 function getReqWorkflow(reqId) {
@@ -2186,8 +2153,7 @@ function addCalibrationVoice(reqId, base64, fileName, mimeType) {
     'Role context: ' + ctx.slice(0, 1500) + '\nFirst transcribe the audio, then extract a structured calibration. ' +
     'Return ONLY JSON: {"transcript":"","must_haves":[],"nice_to_haves":[],"red_flags":[],"summary":""}. Keep each list item a short, concrete phrase.';
   var raw;
-  try { raw = geminiRequest_({ contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: mimeType, data: base64 } }] }],
-        generationConfig: { temperature: 0.1, responseMimeType: 'application/json' } }); }
+  try { raw = aiDocument_('audio_transcription', prompt, base64, mimeType, aiFields_({ transcript: 'string' })); }
   catch (e) { return { error: 'Transcription failed (try mp3/m4a/wav): ' + e.message, voiceUrl: url }; }
   var b = {}; try { b = JSON.parse(raw); } catch (e) { b = { transcript: raw, must_haves: [], nice_to_haves: [], red_flags: [], summary: '' }; }
   var brief = { must_haves: b.must_haves || [], nice_to_haves: b.nice_to_haves || [], red_flags: b.red_flags || [], summary: b.summary || '' };
@@ -2204,7 +2170,7 @@ function setCalibrationFromText(reqId, text) {
   var prompt = 'Hiring manager calibration notes for a role.\nRole context: ' + ctx.slice(0, 1500) +
     '\nNotes: ' + (text || '').slice(0, 4000) +
     '\nReturn ONLY JSON: {"must_haves":[],"nice_to_haves":[],"red_flags":[],"summary":""}. Short concrete phrases.';
-  var raw; try { raw = callGemini(prompt, true); } catch (e) { return { error: e.message }; }
+  var raw; try { raw = callAI_('setCalibrationFromText', prompt, true, aiFields_({ must_haves: 'array', nice_to_haves: 'array', red_flags: 'array', summary: 'string' })); } catch (e) { return { error: e.message }; }
   var brief = {}; try { brief = JSON.parse(raw); } catch (e) { brief = { must_haves: [], nice_to_haves: [], red_flags: [], summary: (text || '').slice(0, 300) }; }
   brief = { must_haves: brief.must_haves || [], nice_to_haves: brief.nice_to_haves || [], red_flags: brief.red_flags || [], summary: brief.summary || '' };
   sh.getRange(row, 21).setValue(sanitizeCell_(text || '')); // C-2
@@ -2612,7 +2578,7 @@ function classifyRubric(reqId) {
   var defC = PropertiesService.getScriptProperties().getProperty('ORG_DEFAULT_COMPANY') || '';
   var role = 'General', company = (defC && comps.indexOf(defC) > -1) ? defC : 'Mid-cap SaaS';
   try {
-    var j = JSON.parse(callGemini('Classify this requisition into exactly one ROLE archetype and one COMPANY archetype from the lists (return the exact strings).\nRole: ' + (s.title || reqId) + ' · Level: ' + (s.level || '') + ' · ' + (s.lob || '') + '\nJD: ' + jd.slice(0, 1000) + '\nConfigured company type: ' + ((arch && arch.companyType) || (orgContext_().type) || '') + '\nROLE archetypes: ' + roles.join(' | ') + '\nCOMPANY archetypes: ' + comps.join(' | ') + '\nMap the SPECIFIC title to the closest archetype, e.g.: Chief of Staff/BizOps→"Chief of Staff / BizOps"; Customer Success Manager/Support→"Customer Success & Support"; Category Manager/Ops→"Operations/PMO/People"; Content Writer/Brand/Growth/SEO→"Marketing & Content"; Recruiter/HRBP/TA→"HR/Talent/Recruiting"; Data/ML/MLOps Engineer→"Data/ML Engineering"; SRE/DevOps/Datacenter→"Senior Technical IC"; SOC/Security Analyst→"Senior Technical IC"; Integration/Solutions Specialist→"Solutions / Sales Engineering"; DevOps/SRE/Platform→"DevOps / SRE / Platform"; Security/InfoSec Engineer→"Security Engineering / InfoSec"; Data Scientist/Analyst→"Data Science & Analytics"; UX/UI/Product Designer→"UX / Product Design"; Supply-chain/Logistics/Category→"Supply Chain / Logistics / Category"; QA/Test/SDET→"QA / Test Engineering"; Hardware/Embedded/Firmware→"Hardware / Embedded Engineering"; TPM/Program Manager→"Technical Program Management"; Clinical/Regulatory/Medical Affairs→"Clinical / Regulatory Affairs". And company: quick-commerce→"E-commerce — Quick Commerce"; fashion/lifestyle retail→"E-commerce — Fashion/Lifestyle"; OpenAI/Anthropic-type→"Frontier AI"; security firm→"Cybersecurity"; datacenter/colo/cloud→"Datacenter/Cloud Infrastructure"; factory/industrial→"Manufacturing/Industrial"; hospital/pharma/biotech→"Healthcare/Pharma/Biotech"; captive/GCC→"GCC — Global Capability Center".\nReturn ONLY JSON {"role":"","company":""}.', true));
+    var j = JSON.parse(callAI_('classifyRubric', 'Classify this requisition into exactly one ROLE archetype and one COMPANY archetype from the lists (return the exact strings).\nRole: ' + (s.title || reqId) + ' · Level: ' + (s.level || '') + ' · ' + (s.lob || '') + '\nJD: ' + jd.slice(0, 1000) + '\nConfigured company type: ' + ((arch && arch.companyType) || (orgContext_().type) || '') + '\nROLE archetypes: ' + roles.join(' | ') + '\nCOMPANY archetypes: ' + comps.join(' | ') + '\nMap the SPECIFIC title to the closest archetype, e.g.: Chief of Staff/BizOps→"Chief of Staff / BizOps"; Customer Success Manager/Support→"Customer Success & Support"; Category Manager/Ops→"Operations/PMO/People"; Content Writer/Brand/Growth/SEO→"Marketing & Content"; Recruiter/HRBP/TA→"HR/Talent/Recruiting"; Data/ML/MLOps Engineer→"Data/ML Engineering"; SRE/DevOps/Datacenter→"Senior Technical IC"; SOC/Security Analyst→"Senior Technical IC"; Integration/Solutions Specialist→"Solutions / Sales Engineering"; DevOps/SRE/Platform→"DevOps / SRE / Platform"; Security/InfoSec Engineer→"Security Engineering / InfoSec"; Data Scientist/Analyst→"Data Science & Analytics"; UX/UI/Product Designer→"UX / Product Design"; Supply-chain/Logistics/Category→"Supply Chain / Logistics / Category"; QA/Test/SDET→"QA / Test Engineering"; Hardware/Embedded/Firmware→"Hardware / Embedded Engineering"; TPM/Program Manager→"Technical Program Management"; Clinical/Regulatory/Medical Affairs→"Clinical / Regulatory Affairs". And company: quick-commerce→"E-commerce — Quick Commerce"; fashion/lifestyle retail→"E-commerce — Fashion/Lifestyle"; OpenAI/Anthropic-type→"Frontier AI"; security firm→"Cybersecurity"; datacenter/colo/cloud→"Datacenter/Cloud Infrastructure"; factory/industrial→"Manufacturing/Industrial"; hospital/pharma/biotech→"Healthcare/Pharma/Biotech"; captive/GCC→"GCC — Global Capability Center".\nReturn ONLY JSON {"role":"","company":""}.', true, aiFields_({ role: 'string', company: 'string' })));
     if (roles.indexOf(j.role) > -1) role = j.role;
     if (comps.indexOf(j.company) > -1) company = j.company;
   } catch (e) {}
@@ -2693,7 +2659,7 @@ function tuneCompanyByText(company, text) {
   var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
   var cats = TalentRubric.categories();
   var prompt = 'A recruiter describes what matters most when hiring at a "' + company + '"-type company. Map it to category emphasis.\nDescription: ' + (text || '').slice(0, 900) + '\nCATEGORIES (index: name):\n' + cats.map(function (c, i) { return i + ': ' + c; }).join('\n') + '\nReturn ONLY JSON {"boost":[indexes],"dampen":[indexes]} — boost = up to 8 categories that matter MOST; dampen = up to 5 that matter least. Use the indexes.';
-  var j; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { return { error: e.message }; }
+  var j; try { j = JSON.parse(callAI_('tuneCompanyByText', prompt, true, aiFields_({ boost: 'array', dampen: 'array' }))); } catch (e) { return { error: e.message }; }
   var state = {}; cats.forEach(function (c) { state[c] = 'neutral'; });
   (j.boost || []).forEach(function (i) { var c = cats[Number(i)]; if (c) state[c] = 'boost'; });
   (j.dampen || []).forEach(function (i) { var c = cats[Number(i)]; if (c) state[c] = 'dampen'; });
@@ -2745,7 +2711,7 @@ function scoreCandidateRubric(candId, regen) {
     'SENIORITY & LEADERSHIP: for candidates with 10+ years, senior ICs, and any people-management / leadership / executive role, weigh heavily — under the relevant categories — leadership & people management, organizational/role IMPACT, cross-functional COLLABORATION & stakeholder influence, mentorship, ownership, and leadership principles (vision, judgement, scaling teams). For a people-management role, score Leadership & People Management as a primary category, not a nice-to-have. For GCC (Global Capability Center) leadership roles (site leader/Director/HR/Finance/Recruiting leader), reward prior GCC / global-captive-center and multinational stakeholder experience.\n' +
     'Set "gate": false ONLY if a disqualifying red flag is present (fabrication, hard-requirement fail, or a "Risk / Red Flags" deal-breaker); else true.\n' +
     'Return ONLY JSON: {"scores":{"0":n, ... ,"36":n},"gate":true,"summary":"one concise evidence-based line"}.';
-  var j; try { j = JSON.parse(callGemini(prompt, true)); } catch (e) { return { error: e.message }; }
+  var j; try { j = JSON.parse(callAI_('cv_scoring', prompt, true, aiRubricValid_(cats.length))); } catch (e) { return { error: e.message }; }
   var scores = {}; cats.forEach(function (c, i) { var v = Number((j.scores && (j.scores[i] != null ? j.scores[i] : j.scores[String(i)]))); scores[c] = Math.max(0, Math.min(5, isNaN(v) ? 0 : v)); });
   var gate = (j.gate !== false && j.gate !== 'No');
   var res; try { res = TalentRubric.scoreCandidate(cfg.role, cfg.company, cfg.threshold, gate, scores); } catch (e) { return { error: e.message }; }
@@ -2950,7 +2916,7 @@ function sendPrepPack_(email, name, reqId, stage) {
   try { var rq = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions').getDataRange().getValues(); for (var i = 1; i < rq.length; i++) if ((rq[i][0] || '').toString() === (reqId || '').toString()) { title = rq[i][1]; break; } } catch (e) {}
   var body;
   try {
-    body = callGemini('Write a warm, professional interview-prep email to a candidate named ' + (name || 'there') + ' for the "' + stage + '" round of the ' + (title || 'role') + ' position. ' +
+    body = callAI_('sendPrepPack', 'Write a warm, professional interview-prep email to a candidate named ' + (name || 'there') + ' for the "' + stage + '" round of the ' + (title || 'role') + ' position. ' +
       'Role context: ' + jd.slice(0, 1200) + '. Include: a friendly greeting, what to expect in this round (format and focus areas), 3-5 concrete preparation tips, logistics reminder to watch for the calendar invite, and an encouraging close. ' +
       'Do NOT include any internal scoring rubric or confidential details. Plain text, ready to send, sign off as "The Recruiting Team".', false);
   } catch (e) {
@@ -2979,7 +2945,7 @@ function draftCandidateEmail(candId, kind) {
   var tone = { advance: 'invite them to the next interview round, positive and encouraging', reject: 'politely decline, warm and respectful, leave the door open for future roles, do NOT give detailed reasons', offer: 'congratulate them and let them know an offer is coming, that a formal offer letter will follow, enthusiastic', thanks: 'thank them for interviewing and let them know the team is reviewing and will follow up soon' };
   var ask = tone[kind] || 'a professional update';
   var j = {};
-  try { j = JSON.parse(callGemini('Write a concise, warm, professional recruiting email to candidate ' + name + ' regarding the ' + (title || 'role') + ' position. Purpose: ' + ask + '. Return ONLY JSON: {"subject":"","body":""}. body in plain text, use the actual name (no [placeholders]), sign off as "The Recruiting Team".', true)); }
+  try { j = JSON.parse(callAI_('draftCandidateEmail', 'Write a concise, warm, professional recruiting email to candidate ' + name + ' regarding the ' + (title || 'role') + ' position. Purpose: ' + ask + '. Return ONLY JSON: {"subject":"","body":""}. body in plain text, use the actual name (no [placeholders]), sign off as "The Recruiting Team".', true, aiFields_({ subject: 'string', body: 'string' }))); }
   catch (e) { return { error: e.message }; }
   return { subject: j.subject || ((title || 'Your application') + ' — update'), body: j.body || '', email: email };
 }
