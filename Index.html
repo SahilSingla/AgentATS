@@ -109,11 +109,6 @@
  .top .spacer{flex:1}
  .userchip{display:flex;align-items:center;gap:9px}
  .navrow{display:flex;align-items:center;gap:6px;border-top:1px solid var(--n200);padding-top:9px;flex-wrap:wrap}
- .nav-primary{display:flex;align-items:center;gap:2px;flex-wrap:wrap}
- .tab{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 13px;border:0;background:transparent;cursor:pointer;border-radius:7px;font-family:var(--bodyf);font-weight:600;font-size:14px;color:var(--n600);position:relative;transition:background .13s,color .13s;white-space:nowrap}
- .tab:hover{background:var(--n100);color:var(--ink)}
- .tab.active{color:var(--violet-700);background:var(--violet-50)}
- .tab.active::after{content:"";position:absolute;left:13px;right:13px;bottom:-10px;height:2.5px;background:var(--violet);border-radius:2px}
  .nav-tools{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap}
  .iconbtn{position:relative;height:38px;min-width:38px;border-radius:7px;border:1px solid var(--n200);background:var(--surface);color:var(--n600);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px;transition:background .13s,border-color .13s,color .13s}
  .iconbtn:hover{background:var(--n50);color:var(--ink);border-color:var(--n300)}
@@ -134,57 +129,88 @@
  .menu hr{border:0;border-top:1px solid var(--n200);margin:6px 4px}
  .btn-create{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 16px;background:var(--violet);color:#fff;border:0;border-radius:10px;cursor:pointer;font-family:var(--bodyf);font-weight:600;font-size:14px;transition:background .13s}
  .btn-create:hover{background:var(--violet-700)}
- @media(max-width:980px){.nav-primary .tab span{display:none}.nav-primary .tab{padding:0 11px}.appname,.recdesig{display:none}}
+ @media(max-width:980px){.appname,.recdesig{display:none}}
+ /* ===== Left nav rail (replaces the old top tab bar) ===== */
+ .appshell{display:flex;height:100vh;overflow:hidden}
+ .siderail{width:220px;flex:none;display:flex;flex-direction:column;background:var(--surface);border-right:1px solid var(--n200);padding:16px 12px;overflow-y:auto;box-sizing:border-box}
+ .rail-brand{display:flex;align-items:center;gap:10px;padding:0 4px 16px;border-bottom:1px solid var(--n200);margin-bottom:14px}
+ .rail-brand-text{min-width:0}
+ .rail-nav{display:flex;flex-direction:column;gap:18px}
+ .rail-section{display:flex;flex-direction:column;gap:2px}
+ .rail-label{font-size:10.5px;font-weight:700;color:var(--n400);text-transform:uppercase;letter-spacing:.6px;padding:0 10px;margin-bottom:4px}
+ .rail-link{display:flex;align-items:center;gap:9px;width:100%;height:38px;padding:0 10px;border:0;background:transparent;cursor:pointer;border-radius:8px;font-family:var(--bodyf);font-weight:600;font-size:14px;color:var(--n600);text-align:left;transition:background .13s,color .13s}
+ .rail-link:hover{background:var(--n100);color:var(--ink)}
+ .rail-link.active{color:var(--violet-700);background:var(--violet-50)}
+ .rail-spacer{flex:1}
+ .rail-verchip{font-size:10px;color:var(--n400);font-weight:600;padding:8px 10px 0;border-top:1px solid var(--n200);margin-top:10px}
+ .mainCol{flex:1;min-width:0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+ .mainCol header{flex:none}
+ .mainCol #chat{flex:1;overflow-y:auto}
+ @media(max-width:900px){.siderail{width:64px;padding:16px 8px}.rail-brand-text,.rail-label,.rail-link span{display:none}.rail-brand{justify-content:center;padding:0 0 16px}.rail-link{justify-content:center;padding:0}}
 </style></head>
 <body>
- <header>
-  <div class="navbar">
-   <div class="top">
-    <div class="brand" onclick="openBranding()" style="cursor:pointer" title="Edit company name & logo">
-     <div id="logoBox" class="logo">MC</div>
-     <div><div id="coName" class="co">Healthy18 ATS<span class="verchip">v102 · Dizno</span></div><div class="appname" id="appName">Talent Acquisition Suite</div></div>
-    </div>
-    <div class="spacer"></div>
-    <div class="datechip" id="todayDate">— — —</div>
-    <div class="userchip"><div class="avatar" id="recAvatar">R</div><div><div class="recname" id="recName">Recruiter</div><div class="recdesig" id="recTitle">Recruiter</div></div></div>
+ <div class="appshell">
+  <aside class="siderail" id="sideRail">
+   <div class="rail-brand" onclick="openBranding()" style="cursor:pointer" title="Edit company name & logo">
+    <div id="logoBox" class="logo">MC</div>
+    <div class="rail-brand-text"><div id="coName" class="co">Healthy18 ATS</div><div class="appname" id="appName">Talent Acquisition Suite</div></div>
    </div>
-   <div class="srow"><input id="gsearch" autocomplete="off" placeholder="🔍 Search anything — a name, email, phone, location, hiring manager, skill, department, or status like ‘debrief reject’" onkeydown="if(event.key==='Enter'){hideSugg();doSearch()}"><button onclick="doSearch()">Search</button><div id="suggBox" class="suggbox"></div></div>
-   <div class="navrow">
-    <nav class="nav-primary" aria-label="Primary">
-     <button class="tab active" onclick="navGo(this,openToday)">🏠 <span>Today</span></button>
-     <button class="tab" onclick="navGo(this,openBoard)">📋 <span>Requisitions</span></button>
-     <button class="tab" onclick="navGo(this,openTalentUpload)">🌱 <span>Talent Pool</span></button>
-     <button class="tab" onclick="navGo(this,openScheduleTop)">📅 <span>Schedule</span></button>
-     <button class="tab" onclick="navGo(this,openDash)">📊 <span>Dashboard</span></button>
-     <button class="tab" onclick="navGo(this,openAnalytics)">📈 <span>Analytics</span></button>
-    </nav>
-    <div class="nav-tools">
-     <button class="iconbtn" title="Source candidates" onclick="openSource()">🔎</button>
-     <button class="iconbtn" title="Insights & alerts" onclick="openInsights()">🔔</button>
-     <button class="toggle" id="biasBtn" aria-pressed="false" onclick="toggleBias()" title="Hide names & gender during screening"><span class="switch"></span><span>Bias guard <span id="biasState">Off</span></span></button>
-     <div class="divider"></div>
-     <div class="more-wrap">
-      <button class="iconbtn" id="moreBtn" onclick="toggleMore(event)" style="width:auto;padding:0 12px;gap:6px;font-weight:600;font-size:14px;font-family:var(--bodyf)">More ▾</button>
-      <div class="menu" id="moreMenu">
-       <a onclick="closeMore();openTeam()">👥 Team &amp; access</a>
-       <a onclick="closeMore();openMyAvailability()">🗓️ My availability</a>
-       <a onclick="closeMore();openRoleLibrary()">📚 Role library</a>
-       <a onclick="closeMore();openJobArch()">🏗 Architecture</a>
-       <a onclick="closeMore();openOrgContext()">🏢 Company</a>
-       <hr>
-       <a onclick="closeMore();importFeedback()">📥 Email feedback</a>
-       <a onclick="closeMore();openPerf()">⚡ Speed report</a>
+   <div class="rail-nav">
+    <div class="rail-section">
+     <div class="rail-label">Recruiting Core</div>
+     <button class="rail-link active" onclick="navGo(this,openToday)">🏠 <span>Today</span></button>
+     <button class="rail-link" onclick="navGo(this,openBoard)">📋 <span>Requisitions</span></button>
+     <button class="rail-link" onclick="navGo(this,openTalentUpload)">🌱 <span>Talent Pool</span></button>
+     <button class="rail-link" onclick="navGo(this,openScheduleTop)">📅 <span>Schedule</span></button>
+    </div>
+    <div class="rail-section">
+     <div class="rail-label">Intelligence &amp; Automation</div>
+     <button class="rail-link" onclick="navGo(this,openDash)">📊 <span>Dashboard</span></button>
+     <button class="rail-link" onclick="navGo(this,openAnalytics)">📈 <span>Analytics</span></button>
+     <button class="rail-link" onclick="navGo(this,openInsights)">🔔 <span>Insights &amp; Alerts</span></button>
+    </div>
+   </div>
+   <div class="rail-spacer"></div>
+   <div class="rail-verchip">v103 · Dizno</div>
+  </aside>
+  <div class="mainCol">
+   <header>
+    <div class="navbar">
+     <div class="top">
+      <div class="spacer"></div>
+      <div class="datechip" id="todayDate">— — —</div>
+      <div class="userchip"><div class="avatar" id="recAvatar">R</div><div><div class="recname" id="recName">Recruiter</div><div class="recdesig" id="recTitle">Recruiter</div></div></div>
+     </div>
+     <div class="srow"><input id="gsearch" autocomplete="off" placeholder="🔍 Search anything — a name, email, phone, location, hiring manager, skill, department, or status like ‘debrief reject’" onkeydown="if(event.key==='Enter'){hideSugg();doSearch()}"><button onclick="doSearch()">Search</button><div id="suggBox" class="suggbox"></div></div>
+     <div class="navrow">
+      <div class="nav-tools" style="margin-left:auto">
+       <button class="iconbtn" title="Source candidates" onclick="openSource()">🔎</button>
+       <button class="toggle" id="biasBtn" aria-pressed="false" onclick="toggleBias()" title="Hide names & gender during screening"><span class="switch"></span><span>Bias guard <span id="biasState">Off</span></span></button>
+       <div class="divider"></div>
+       <div class="more-wrap">
+        <button class="iconbtn" id="moreBtn" onclick="toggleMore(event)" style="width:auto;padding:0 12px;gap:6px;font-weight:600;font-size:14px;font-family:var(--bodyf)">More ▾</button>
+        <div class="menu" id="moreMenu">
+         <a onclick="closeMore();openTeam()">👥 Team &amp; access</a>
+         <a onclick="closeMore();openMyAvailability()">🗓️ My availability</a>
+         <a onclick="closeMore();openRoleLibrary()">📚 Role library</a>
+         <a onclick="closeMore();openJobArch()">🏗 Architecture</a>
+         <a onclick="closeMore();openOrgContext()">🏢 Company</a>
+         <hr>
+         <a onclick="closeMore();importFeedback()">📥 Email feedback</a>
+         <a onclick="closeMore();openPerf()">⚡ Speed report</a>
+        </div>
+       </div>
+       <button class="btn-create" onclick="openReq()">＋ New requisition</button>
       </div>
      </div>
-     <button class="btn-create" onclick="openReq()">＋ New requisition</button>
     </div>
-   </div>
+   </header>
+   <div id="chat"></div>
+   <form id="chatform" onsubmit="send(event)">
+     <input id="box" placeholder="Type a command…" autocomplete="off"><button type="submit">Send</button>
+   </form>
   </div>
- </header>
- <div id="chat"></div>
- <form id="chatform" onsubmit="send(event)">
-   <input id="box" placeholder="Type a command…" autocomplete="off"><button type="submit">Send</button>
- </form>
+ </div>
  <div id="overlay"><div id="panelWrap"><button id="xClose" onclick="closeModal()" title="Close">✕</button><div id="panel"></div></div></div>
 <script>
 /* ---- SECURITY (C-1/C-3): every server call automatically carries this user's ?u= access
@@ -287,7 +313,7 @@ function money(v){var sv=(v==null?'':String(v));var n=sv.replace(/[^\d.]/g,'');i
 function matchBadge(p){if(p==null)return '';var g;if(p>=75)g={l:'Excellent',c:'#1f7a4d',n:5};else if(p>=60)g={l:'Strong',c:'#2f7d5b',n:4};else if(p>=45)g={l:'Moderate',c:'#b06a00',n:3};else if(p>=30)g={l:'Weak',c:'#c2772e',n:2};else g={l:'Low',c:'#9a3b3b',n:1};var dots='';for(var i=0;i<5;i++)dots+=(i<g.n?'●':'○');return '<span title="Keyword match to this requisition ('+p+'%)" style="color:'+g.c+';font-size:11px;font-weight:600">'+dots+' '+g.l+'</span>';}
 function maskName(name,candId){return window._bias?('Candidate '+(candId||'')):(name||'');}
 function updateBiasBtn(){var b=document.getElementById('biasBtn');if(!b)return;b.setAttribute('aria-pressed',window._bias?'true':'false');var s=document.getElementById('biasState');if(s)s.textContent=window._bias?'On':'Off';}
-function navGo(el,fn){try{document.querySelectorAll('.nav-primary .tab').forEach(function(t){t.classList.remove('active');});if(el)el.classList.add('active');}catch(e){}if(typeof fn==='function')fn();}
+function navGo(el,fn){try{document.querySelectorAll('.siderail .rail-link').forEach(function(t){t.classList.remove('active');});if(el)el.classList.add('active');}catch(e){}if(typeof fn==='function')fn();}
 function toggleMore(e){if(e)e.stopPropagation();var m=document.getElementById('moreMenu');if(m)m.classList.toggle('open');}
 function closeMore(){var m=document.getElementById('moreMenu');if(m)m.classList.remove('open');}
 document.addEventListener('click',function(){closeMore();});
