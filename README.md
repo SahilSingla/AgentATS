@@ -48,7 +48,7 @@ AgentATS is a gift to the HR and talent-acquisition community. It exists to prov
 
 ## The AI model
 
-AgentATS uses **Google Gemini** through *your own* API key — bring your own key, pay as you go. Parsing and scoring calls cost cents, not seats: a busy month of screening typically costs less than a coffee. The key lives in a Script Property (`GEMINI_KEY`), is never written into code, and never touches any third-party server — calls go directly from your Google account to Google's API. The prompt layer is model-agnostic by design; swapping in another provider is a small, well-contained change.
+AgentATS uses **Google Gemini by default**, with optional **Anthropic Claude** support through a provider-neutral gateway. Use your own API keys stored in Apps Script Script Properties. Configure ordered model fallback and different routes for parsing, scoring, interview questions, and other tasks. Calls go directly to the selected provider; including Claude in a route allows that task’s content to be sent to Anthropic. See [AI gateway configuration and limits](AI_GATEWAY.md).
 
 ## How it compares
 

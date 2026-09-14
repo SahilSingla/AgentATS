@@ -19,6 +19,7 @@ For each file below: in the editor's left sidebar click **+** next to *Files*, p
 | File in this repo | Type to create | Name it |
 |---|---|---|
 | `Code.gs` | Script | `Code` |
+| `AiGateway.gs` | Script | `AiGateway` |
 | `TalentRubric.gs` | Script | `TalentRubric` |
 | `Index.html` | HTML | `Index` |
 | `Apply.html` | HTML | `Apply` |
@@ -34,6 +35,8 @@ For each file below: in the editor's left sidebar click **+** next to *Files*, p
    - Value: *(paste your key)*
 
 Keys live only in Script Properties. Never paste a key into a code file.
+
+Gemini-only setup remains the default. For optional Claude support, ordered model fallback, and per-task routing, add `ANTHROPIC_API_KEY` and `AI_CONFIG` as described in [AI_GATEWAY.md](AI_GATEWAY.md). Existing installations must also add the new `AiGateway.gs` file before deploying updated code.
 
 ### 4. Run `firstRun()` — the self-provisioning step
 
@@ -99,7 +102,7 @@ The friendliest distribution is a **template spreadsheet with the script attache
 
 ## Troubleshooting
 
-- **"GEMINI_KEY not set in Script Properties"** — step 3 was skipped; add the property and retry.
+- **"AI request failed (authentication)"** — check the key for the selected provider in Script Properties. For configuration, model availability, or attempt-budget errors, see [AI_GATEWAY.md](AI_GATEWAY.md).
 - **App loads but says you need a personal access link** — open it through your `?u=` link (see Team section), or as the account owner just sign in with the owning Google account.
 - **Careers page won't upload a CV** — files must be PDF/DOC/DOCX under 5 MB.
 - **CV forwarder does nothing** — run its `setup` again; it refuses to run until both config values are truly filled in (that's deliberate, so CVs are never silently dropped).
