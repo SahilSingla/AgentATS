@@ -1,8 +1,8 @@
-# AgentATS
+# Healthy18 ATS
 
 **An open-source, AI-native ATS that runs entirely inside your own Google account — free forever.**
 
-![Why AgentATS — free vs. thousands a year, you own your data, no per-seat pricing, bring your own AI key, explainable and bias-aware, open source](agentats-why.gif)
+![Why Healthy18 ATS — free vs. thousands a year, you own your data, no per-seat pricing, bring your own AI key, explainable and bias-aware, open source](agentats-why.gif)
 
 No servers. No database bills. No per-seat pricing. You paste six files into a free Google Apps Script project, run one function, and you have a working applicant tracking system: a hiring web app for your team, a public careers page for candidates, AI resume parsing and scoring, interview scheduling, debriefs, and analytics — all stored in a Google Sheet and Drive folder that *you* own.
 
@@ -12,7 +12,7 @@ No servers. No database bills. No per-seat pricing. You paste six files into a f
 
 Recruiting software is overpriced and locked-in. Small teams pay hundreds of dollars per month for tools whose core job is: keep a list of candidates, read their CVs, schedule interviews, and collect feedback. Your data lives on someone else's servers, exports are painful, and the AI features cost extra.
 
-AgentATS is a gift to the HR and talent-acquisition community. It exists to prove that a genuinely useful, AI-assisted ATS can be free, transparent, and owned end-to-end by the people using it. Read every line of code. Change anything. Your candidate data never leaves your Google account.
+Healthy18 ATS is a gift to the HR and talent-acquisition community. It exists to prove that a genuinely useful, AI-assisted ATS can be free, transparent, and owned end-to-end by the people using it. Read every line of code. Change anything. Your candidate data never leaves your Google account.
 
 ## What it does
 
@@ -48,13 +48,13 @@ AgentATS is a gift to the HR and talent-acquisition community. It exists to prov
 
 ## The AI model
 
-AgentATS uses **Google Gemini by default**, with optional **Anthropic Claude** support through a provider-neutral gateway. Use your own API keys stored in Apps Script Script Properties. Configure ordered model fallback and different routes for parsing, scoring, interview questions, and other tasks. Calls go directly to the selected provider; including Claude in a route allows that task’s content to be sent to Anthropic. See [AI gateway configuration and limits](AI_GATEWAY.md).
+Healthy18 ATS uses **Google Gemini by default**, with optional **Anthropic Claude** support through a provider-neutral gateway. Use your own API keys stored in Apps Script Script Properties. Configure ordered model fallback and different routes for parsing, scoring, interview questions, and other tasks. Calls go directly to the selected provider; including Claude in a route allows that task’s content to be sent to Anthropic. See [AI gateway configuration and limits](AI_GATEWAY.md).
 
 ## How it compares
 
 Honest benchmarking against the tools this replaces for small and mid-size teams:
 
-| | AgentATS | Leading paid ATS platforms |
+| | Healthy18 ATS | Leading paid ATS platforms |
 |---|---|---|
 | Price | Free, forever (plus cents of AI usage on your own key) | Roughly $300–$1,000+/month for small teams; enterprise pricing beyond |
 | Data ownership | 100% in your Google account — the "database" is a Sheet you can open | Vendor cloud; exports on request |
@@ -103,11 +103,11 @@ If you're a 2,000-person company with a compliance team, buy an enterprise ATS. 
 
 ## See the AI work
 
-![AgentATS in action — AI reads a résumé into a structured profile, scores and stack-ranks candidates, and answers a plain-English question](agentats-ai-magic.gif)
+![Healthy18 ATS in action — AI reads a résumé into a structured profile, scores and stack-ranks candidates, and answers a plain-English question](agentats-ai-magic.gif)
 
 ## 2-minute setup
 
-AgentATS is fully self-provisioning — you never touch a Sheet ID or folder ID:
+Healthy18 ATS is fully self-provisioning — you never touch a Sheet ID or folder ID:
 
 1. Go to [script.google.com](https://script.google.com) → **New project**.
 2. Paste in the six files from this repo (`Code.gs`, `TalentRubric.gs`, `Index.html`, `Apply.html`, `Source.html`, and optionally `CvForwarder.gs` for the careers mailbox).
@@ -129,10 +129,20 @@ That's it. Open the URL: that's your ATS. Add `?page=apply` for your public care
 
 - **`CvForwarder.gs`** — runs in your `careers@` mailbox and forwards every emailed CV into the ATS. Two clearly marked placeholders to fill in; see SETUP.md.
 - **External database sync** — a Supabase sync/backup module exists for teams that outgrow Sheets, but it is intentionally *not* part of the open-source core. The OSS release is Google-Sheets-only: one account, one mental model, nothing else to secure.
+- **CI/CD auto-deploy** — a GitHub Actions workflow (`.github/workflows/deploy.yml`) can push code to your Apps Script project on every merge to `main`, so you don't have to paste files into the editor by hand. Opt-in via three GitHub secrets; setup steps are in [SETUP.md](SETUP.md#9-automate-deploys-with-github-actions-optional-for-teams-tracking-this-repo-in-git).
+
+## Roadmap
+
+Tracked but not yet built:
+
+- A pre-defined library of titles, roles, responsibilities, JDs, and comp ranges to speed up requisition creation.
+- SSO-based login for hiring managers (beyond the current per-teammate token links).
+
+Have an opinion on priority, or want to build one of these? See Community & contributing below.
 
 ## Community & contributing
 
-This project is maintained for the HR/TA community, by the HR/TA community. Bug reports, feature requests, translations, rubric improvements, and documentation fixes are all welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). If AgentATS saved your team money, the best thank-you is a contribution (or telling another recruiter it exists).
+This project is maintained for the HR/TA community, by the HR/TA community. Bug reports, feature requests, translations, rubric improvements, and documentation fixes are all welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). If Healthy18 ATS saved your team money, the best thank-you is a contribution (or telling another recruiter it exists).
 
 ## License
 

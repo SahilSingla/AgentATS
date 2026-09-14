@@ -1,0 +1,42 @@
+<!DOCTYPE html><html><head><base target="_top">
+<style>
+ body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f5f1;margin:0;padding:24px;color:#1a1a1a}
+ .card{max-width:480px;margin:0 auto;background:#fff;border:1px solid #e2ddd0;border-radius:14px;padding:24px}
+ h2{margin:0 0 4px}.sub{color:#777;font-size:13px;margin-bottom:18px}
+ .day{font-size:12px;font-weight:600;margin:12px 0 4px}
+ .slot{display:inline-block;cursor:pointer;background:#eef7f0;color:#1f7a4d;border:1px solid #cfe6d8;border-radius:14px;padding:5px 12px;margin:3px 6px 0 0;font-size:13px}
+ .slot:hover{background:#dcefe1}
+ #msg{margin-top:14px;font-size:14px;color:#555}
+</style></head><body>
+<div class="card" id="card">
+ <h2 id="title">Loading…</h2><div class="sub" id="sub"></div>
+ <div id="slots"></div>
+ <div id="msg"></div>
+</div>
+<script>
+ function qp(k){var m=new RegExp('[?&]'+k+'=([^&]*)').exec(location.search);return m?decodeURIComponent(m[1]):'';}
+ var TOKEN=qp('t');
+ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+ if(!TOKEN){document.getElementById('title').textContent='Missing link';document.getElementById('sub').textContent='Ask your Healthy18 contact for a new scheduling link.';}
+ else{
+   google.script.run.withSuccessHandler(function(info){
+     if(!info||info.error){document.getElementById('title').textContent='Link unavailable';document.getElementById('sub').textContent=(info&&info.error)||'This link is no longer valid.';return;}
+     document.getElementById('title').textContent='Pick a time, '+(info.candName||'there');
+     document.getElementById('sub').textContent=(info.stage||'Interview')+' — choose whichever works best for you.'+(info.note?(' '+info.note):'');
+     var el=document.getElementById('slots');
+     if(!info.slots||!info.slots.length){el.innerHTML='<p style="color:#777">No open slots found in the next few days — please reply to your recruiter\'s email directly.</p>';return;}
+     var byDay={},order=[];
+     info.slots.forEach(function(s){if(!byDay[s.day]){byDay[s.day]=[];order.push(s.day);}byDay[s.day].push(s);});
+     el.innerHTML=order.map(function(day){return '<div class="day">'+esc(day)+'</div>'+byDay[day].map(function(s){return '<span class="slot" onclick="pick(\''+s.iso+'\')">'+esc(s.time)+'</span>';}).join('');}).join('');
+   }).withFailureHandler(function(x){document.getElementById('title').textContent='⚠️ Error';document.getElementById('sub').textContent=x.message;}).selfScheduleInfo(TOKEN);
+ }
+ function pick(iso){
+   document.getElementById('slots').innerHTML='';
+   document.getElementById('msg').textContent='Booking…';
+   google.script.run.withSuccessHandler(function(r){
+     if(r&&r.error){document.getElementById('msg').textContent='⚠️ '+r.error;return;}
+     document.getElementById('card').innerHTML='<h2>✅ Booked</h2><div class="sub">'+esc((r&&r.message)||'Your interview is scheduled — check your inbox for the calendar invite.')+'</div>';
+   }).withFailureHandler(function(x){document.getElementById('msg').textContent='⚠️ '+x.message;}).submitSelfSchedule(TOKEN,iso);
+ }
+</script>
+</body></html>

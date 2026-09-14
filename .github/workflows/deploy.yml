@@ -1,0 +1,55 @@
+# Auto-deploy to Apps Script on every push to main.
+#
+# One-time setup (see SETUP.md → "Automate deploys with GitHub Actions"):
+#   1. Locally: `npx @google/clasp login`, then copy the contents of the
+#      generated ~/.clasprc.json into a GitHub repo secret named CLASPRC_JSON.
+#   2. Add a repo secret CLASP_SCRIPT_ID with your Apps Script project's
+#      script ID (Project Settings → Script ID in script.google.com).
+#   3. (Optional, to also update the live web app URL) Add a repo secret
+#      CLASP_DEPLOYMENT_ID with the deployment id shown under
+#      Deploy → Manage deployments. Without it, this workflow only pushes
+#      source — you still click "New version" once to ship it live, same
+#      as today.
+# Until the secrets are added, this workflow is a no-op placeholder — it
+# will fail with an auth error, which just means setup hasn't been done yet.
+name: Deploy to Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '*.gs'
+      - '*.html'
+      - 'appsscript.json'
+
+jobs:
+  clasp-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Configure clasp credentials
+        run: echo "$CLASPRC_JSON" > ~/.clasprc.json
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+
+      - name: Write .clasp.json
+        run: echo "{\"scriptId\":\"$CLASP_SCRIPT_ID\",\"rootDir\":\".\"}" > .clasp.json
+        env:
+          CLASP_SCRIPT_ID: ${{ secrets.CLASP_SCRIPT_ID }}
+
+      - name: Push to Apps Script
+        run: npx clasp push --force
+
+      - name: Deploy new version to the live web app (optional)
+        if: ${{ secrets.CLASP_DEPLOYMENT_ID != '' }}
+        run: npx clasp deploy -i "$CLASP_DEPLOYMENT_ID" -d "auto-deploy $(date -u +%Y-%m-%dT%H:%M:%SZ) via GitHub Actions"
+        env:
+          CLASP_DEPLOYMENT_ID: ${{ secrets.CLASP_DEPLOYMENT_ID }}

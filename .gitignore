@@ -12,6 +12,8 @@ service-account*.json
 *credentials*.json
 client_secret*.json
 apply_secret.txt
+.clasprc.json
+.clasp.json
 
 # dependencies / build junk
 node_modules/

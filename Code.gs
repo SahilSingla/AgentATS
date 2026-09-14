@@ -1,4 +1,4 @@
-/***** AgentATS — complete Apps Script backend (Code.gs) *****/
+/***** Healthy18 ATS — complete Apps Script backend (Code.gs) *****/
 
 // ---------- CONFIG ----------
 // SHEET_ID / FOLDER_ID are NEVER hardcoded. They live in Script Properties and are
@@ -59,7 +59,7 @@ function requireRole_(token, minRole) {
   var u = currentUserFromToken_(token);
   if (!u && AUTH_USER_) u = AUTH_USER_;   // already verified earlier in this execution
   if (!u) { var s = currentUser_(); if (s && s.role) u = s; } // Google sign-in fallback (owner)
-  if (!u || !u.role) return { error: '🔒 Please open AgentATS through your personal access link (ask your admin for it).' };
+  if (!u || !u.role) return { error: '🔒 Please open Healthy18 ATS through your personal access link (ask your admin for it).' };
   if (roleRank_(u.role) < roleRank_(minRole || 'Interviewer'))
     return { error: '🔒 Sorry ' + (u.name || u.email) + ' — your role (' + u.role + ') is not allowed to do that.' };
   AUTH_USER_ = u;
@@ -122,9 +122,9 @@ function webhookSecretOk_(e, p) {
 // ---------- WEB APP ENTRY ----------
 function doGet(e) {
   var p = (e && e.parameter && e.parameter.page) || '';
-  var file = p === 'apply' ? 'Apply' : (p === 'source' ? 'Source' : 'Index');
+  var file = p === 'apply' ? 'Apply' : (p === 'source' ? 'Source' : (p === 'agency' ? 'Agency' : (p === 'selfschedule' ? 'SelfSchedule' : 'Index')));
   return HtmlService.createHtmlOutputFromFile(file)
-    .setTitle('AgentATS').addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    .setTitle('Healthy18 ATS').addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
 // ---------- PER-REQUISITION INTERVIEW PLAN / RUBRIC ----------
@@ -197,7 +197,7 @@ function addSourcedCandidate(o) {
   var sheet = trackerSheet_();
   var r = withScriptLock_(function () { // H-1: atomic append + ID mint
     sheet.appendRow(sanitizeRow_([new Date(), o.name || '(sourced)', o.email || '', '', o.source || 'Sourced', o.url || '', 'New', o.score || '', (o.notes || '').substring(0, 300), '', ''])); // C-2: sourced (HN) text
-    var rr = sheet.getLastRow(); sheet.getRange(rr, 31).setValue(nextCandidateId_()); return rr;
+    var rr = sheet.getLastRow(); sheet.getRange(rr, 31).setValue(nextCandidateId_()); stampApplicationId_(sheet, rr); return rr;
   });
   if (o.reqId) sheet.getRange(r, 12).setValue(sanitizeCell_(o.reqId));
   bustCache_(); // M-3: new candidate must appear in the board/pipeline immediately (caches are keyed on CACHE_VER)
@@ -208,8 +208,8 @@ function addSourcedCandidate(o) {
 /**
  * firstRun() — run this ONCE from the Apps Script editor on a fresh install.
  * Self-provisioning: if no SHEET_ID / FOLDER_ID Script Properties exist yet, it
- * CREATES a new Google Spreadsheet ("AgentATS Tracker") and a Drive folder
- * ("AgentATS CVs"), stores both ids in Script Properties, builds every tab,
+ * CREATES a new Google Spreadsheet ("Healthy18 ATS Tracker") and a Drive folder
+ * ("Healthy18 ATS CVs"), stores both ids in Script Properties, builds every tab,
  * seeds YOU as the Admin user, and logs the new Sheet URL. No manual ids needed.
  * Safe to re-run: it never overwrites an existing SHEET_ID/FOLDER_ID.
  * Run firstRun() BEFORE you deploy the web app.
@@ -220,7 +220,7 @@ function firstRun() {
   // 1) Spreadsheet: reuse the stored one, or create a fresh tracker.
   var sheetId = p.getProperty('SHEET_ID') || '';
   if (!sheetId) {
-    var created = SpreadsheetApp.create('AgentATS Tracker');
+    var created = SpreadsheetApp.create('Healthy18 ATS Tracker');
     created.getSheets()[0].setName('Tracker');
     sheetId = created.getId();
     p.setProperty('SHEET_ID', sheetId);
@@ -230,7 +230,7 @@ function firstRun() {
   // 2) Drive folder for incoming CVs.
   var folderId = p.getProperty('FOLDER_ID') || '';
   if (!folderId) {
-    folderId = DriveApp.createFolder('AgentATS CVs').getId();
+    folderId = DriveApp.createFolder('Healthy18 ATS CVs').getId();
     p.setProperty('FOLDER_ID', folderId);
   }
   FOLDER_ID = folderId;
@@ -254,9 +254,9 @@ function firstRun() {
   addCandidateIdColumn();
 
   var url = ss.getUrl();
-  Logger.log('AgentATS is ready. Your tracker: ' + url);
+  Logger.log('Healthy18 ATS is ready. Your tracker: ' + url);
   Logger.log('Next: set Script Property GEMINI_KEY, then Deploy > New deployment > Web app.');
-  return 'AgentATS is ready. Tracker: ' + url;
+  return 'Healthy18 ATS is ready. Tracker: ' + url;
 }
 
 function setupAtsTabs() {
@@ -352,7 +352,7 @@ function repairSheets() {
 function createFeedbackForm() {
   var _g = guard_(arguments, 'Admin'); if (_g.error) return _g.error; // C-1: server-side auth
   var ss = SpreadsheetApp.openById(SHEET_ID);
-  var form = FormApp.create('AgentATS — Interview Feedback');
+  var form = FormApp.create('Healthy18 ATS — Interview Feedback');
   form.setDescription('Structured candidate feedback. Score on evidence, not impression.');
   form.addTextItem().setTitle('Candidate name').setRequired(true);
   form.addTextItem().setTitle('Candidate email').setRequired(true);
@@ -448,7 +448,7 @@ function scheduleInterviews() {
       if (isNaN(start.getTime())) { sheet.getRange(r + 1, 10).setNote('Bad date — use 2026-06-06 18:30'); continue; }
       var end = new Date(start.getTime() + 45 * 60000);
       cal.createEvent('Interview: ' + row[1] + (row[3] ? ' — ' + row[3] : ''), start, end,
-        { guests: email, sendInvites: true, description: 'AgentATS interview.\nResume: ' + (row[5] || '') });
+        { guests: email, sendInvites: true, description: 'Healthy18 ATS interview.\nResume: ' + (row[5] || '') });
       sheet.getRange(r + 1, 7).setValue('Interview Scheduled');
     }
   }
@@ -458,7 +458,7 @@ function scheduleInterviews() {
 function exportDecidedCandidates() {
   var _g = guard_(arguments, 'Admin'); if (_g.error) return _g.error; // C-1: server-side auth
   var ss = SpreadsheetApp.openById(SHEET_ID), sheet = ss.getSheetByName('Tracker');
-  var data = sheet.getDataRange().getValues(), feedback = getFeedbackRows_(ss), folder = getOrCreateFolder_('AgentATS Records');
+  var data = sheet.getDataRange().getValues(), feedback = getFeedbackRows_(ss), folder = getOrCreateFolder_('Healthy18 ATS Records');
   for (var r = 1; r < data.length; r++) {
     var row = data[r], stage = (row[6] || '').toString().trim().toLowerCase();
     if (stage === 'selected' || stage === 'rejected') {
@@ -561,6 +561,7 @@ function addCandidate(o) {
     sheet.appendRow(sanitizeRow_([new Date(), o.name, o.email || '', o.role || '', 'Manual', '', 'New', '', o.notes || '', '', ''])); // C-2
     var cid = nextCandidateId_();
     sheet.getRange(sheet.getLastRow(), 31).setValue(cid);
+    stampApplicationId_(sheet, sheet.getLastRow());
     return cid;
   });
   try { sbSyncCandidate_(id); } catch (e) {}
@@ -819,7 +820,7 @@ function doPost(e) {
           else if (mt.ambiguous) msg = '⚠️ ' + mt.count + ' candidates match "' + cname + '" — please use the full name or their email so the feedback lands on the right person.'; // M-5
           else {
             saveInterviewFeedback({ candId: mt.candId, name: mt.name, email: mt.email, interviewer: prm.user_name || 'Slack', feedback: fb, source: 'Slack (raw)' });
-            msg = '✅ Feedback logged for ' + mt.name + '. Open AgentATS to polish the English.';
+            msg = '✅ Feedback logged for ' + mt.name + '. Open Healthy18 ATS to polish the English.';
           }
         }
       }
@@ -983,7 +984,7 @@ function scheduleFromChat(o) {
   var end = new Date(start.getTime() + 45 * 60000);
   var name = sheet.getRange(row, 2).getValue(), email = (sheet.getRange(row, 3).getValue() || '').toString().trim(), role = sheet.getRange(row, 4).getValue();
   var ev = Calendar.Events.insert({
-    summary: 'Interview: ' + name + (role ? ' — ' + role : ''), description: 'AgentATS interview.',
+    summary: 'Interview: ' + name + (role ? ' — ' + role : ''), description: 'Healthy18 ATS interview.',
     start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() },
     attendees: email ? [{ email: email }] : [],
     conferenceData: { createRequest: { requestId: Utilities.getUuid(), conferenceSolutionKey: { type: 'hangoutsMeet' } } }
@@ -2005,23 +2006,190 @@ function nextReqId_(sheet, lob, hm) {
   var seq = ('000' + n).slice(-3);
   return lob3 + '-' + initials + '-' + seq;
 }
+// ---------- REQUISITION APPROVAL & IMMUTABILITY ----------
+// Once a requisition has been approved at least once (Version >= 1), its material terms
+// (title, department, LOB, location, employment type, level, hiring manager, openings,
+// salary band, JD notes, HM email) are locked. Head HR/hiring managers can no longer edit
+// them directly — they must submit a change request that Admin (you) approves or rejects.
+// Recruiter assignment and operational Status (Open/Closed/etc.) stay freely editable —
+// those are workflow housekeeping, not terms of the approved requisition.
+function reqLockedFieldMap_() {
+  return [[1, 'title', 'Title'], [2, 'department', 'Department'], [3, 'lob', 'Line of business'],
+    [4, 'location', 'Location'], [5, 'employment', 'Employment type'], [6, 'level', 'Level'],
+    [7, 'hm', 'Hiring manager'], [9, 'openings', 'Openings'], [11, 'salary_min', 'Salary min'],
+    [12, 'salary_max', 'Salary max'], [17, 'notes', 'Notes'], [25, 'hm_email', 'HM email']];
+}
+// Lazily adds the approval-tracking columns (29-35) to an existing Requisitions sheet so
+// no manual migration step is needed on upgrade.
+function ensureReqApprovalCols_(sh) {
+  var headers = ['Version', 'Submitted By', 'Submitted At', 'Approved By', 'Approved At', 'Decision Notes', 'Pending Change ID'];
+  var existing = sh.getRange(1, 29, 1, 7).getValues()[0], need = false;
+  for (var i = 0; i < 7; i++) if ((existing[i] || '').toString() !== headers[i]) { need = true; break; }
+  if (need) sh.getRange(1, 29, 1, 7).setValues([headers]).setFontWeight('bold');
+}
+function reqVersionsSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Req Versions');
+  if (!sh) { sh = ss.insertSheet('Req Versions'); sh.getRange(1, 1, 1, 6).setValues([['Req ID', 'Version', 'Snapshot JSON', 'Changed By', 'Changed At', 'Source']]).setFontWeight('bold'); }
+  return sh;
+}
+function reqChangesSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Req Changes');
+  if (!sh) { sh = ss.insertSheet('Req Changes'); sh.getRange(1, 1, 1, 10).setValues([['Change ID', 'Req ID', 'Requested By', 'Requested At', 'Changes JSON', 'Reason', 'Status', 'Decided By', 'Decided At', 'Decision Notes']]).setFontWeight('bold'); }
+  return sh;
+}
+function nextChangeId_() {
+  var p = PropertiesService.getScriptProperties(), n = parseInt(p.getProperty('REQCHG_SEQ') || '0', 10) + 1;
+  p.setProperty('REQCHG_SEQ', String(n));
+  return 'CR-' + ('0000' + n).slice(-4);
+}
+// Snapshots the locked fields (+ status/recruiter for context) of an approved requisition
+// version into Req Versions, so old and new versions are both kept for audit.
+function snapshotReqVersion_(sh, row, reqId, version, who, source) {
+  var d = sh.getRange(row, 1, 1, 28).getValues()[0], snap = {};
+  reqLockedFieldMap_().forEach(function (m) { snap[m[1]] = d[m[0]]; });
+  snap.status = d[13]; snap.recruiter = d[8];
+  reqVersionsSheet_().appendRow([reqId, version, JSON.stringify(snap), who, new Date(), source]);
+}
+// Admin-only: approves a Pending Approval requisition, opens it for sourcing, and snapshots v1.
+function approveRequisition(reqId) {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return _g.error; // C-1: server-side auth
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'); ensureReqApprovalCols_(sh);
+  var row = findReqRow_(sh, reqId); if (row < 0) return { error: 'Requisition not found.' };
+  var status = (sh.getRange(row, 14).getValue() || '').toString();
+  if (status.toLowerCase() === 'open') return { error: reqId + ' is already approved and open.' };
+  var who = _g.name || _g.email, now = new Date();
+  sh.getRange(row, 14).setValue('Open');
+  sh.getRange(row, 29, 1, 6).setValues([[1, sh.getRange(row, 30).getValue() || who, sh.getRange(row, 31).getValue() || now, who, now, '']]);
+  snapshotReqVersion_(sh, row, reqId, 1, who, 'Initial Approval');
+  logAudit_(reqId.toString(), who + ' approved requisition ' + reqId + ' (v1) — now open for sourcing.');
+  bustCache_();
+  return { ok: true, message: '✅ ' + reqId + ' approved and open for sourcing.' };
+}
+// Admin-only: rejects a Pending Approval requisition. HR can revise and it stays freely
+// editable (Version stays 0) since it was never approved.
+function rejectRequisition(reqId, reason) {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return _g.error; // C-1: server-side auth
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'); ensureReqApprovalCols_(sh);
+  var row = findReqRow_(sh, reqId); if (row < 0) return { error: 'Requisition not found.' };
+  var who = _g.name || _g.email;
+  sh.getRange(row, 14).setValue('Rejected');
+  sh.getRange(row, 32).setValue(who); sh.getRange(row, 33).setValue(new Date()); sh.getRange(row, 34).setValue(reason || '');
+  logAudit_(reqId.toString(), who + ' rejected requisition ' + reqId + (reason ? ': ' + reason : '') + '.');
+  bustCache_();
+  return { ok: true, message: '❌ ' + reqId + ' rejected.' };
+}
+// HiringManager+: propose changes to an already-approved requisition's locked fields.
+// `changes` is {fieldKey: newValue} using the keys from reqLockedFieldMap_. Only one
+// change request may be pending per requisition at a time.
+function submitReqChangeRequest(reqId, changes, reason) {
+  var _g = guard_(arguments, 'HiringManager'); if (_g.error) return _g.error; // C-1: server-side auth
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'); ensureReqApprovalCols_(sh);
+  var row = findReqRow_(sh, reqId); if (row < 0) return { error: 'Requisition not found.' };
+  var d = sh.getRange(row, 1, 1, 35).getValues()[0], version = parseInt(d[28], 10) || 0;
+  if (version < 1) return { error: reqId + ' has not been approved yet — edit it directly instead of raising a change request.' };
+  if ((d[34] || '').toString()) return { error: 'Change request ' + d[34] + ' is already pending for ' + reqId + '.' };
+  var diff = {};
+  reqLockedFieldMap_().forEach(function (m) {
+    if (!changes || changes[m[1]] === undefined) return;
+    var nv = (changes[m[1]] == null ? '' : changes[m[1]]).toString(), ov = (d[m[0]] == null ? '' : d[m[0]]).toString();
+    if (nv !== ov) diff[m[1]] = { label: m[2], old: ov, new: nv };
+  });
+  if (!Object.keys(diff).length) return { error: 'No actual changes to submit.' };
+  var id = nextChangeId_(), who = _g.name || _g.email;
+  reqChangesSheet_().appendRow(sanitizeRow_([id, reqId, who, new Date(), JSON.stringify(diff), reason || '', 'Pending', '', '', ''])); // C-2
+  sh.getRange(row, 35).setValue(id);
+  logAudit_(reqId.toString(), who + ' submitted change request ' + id + ': ' + Object.keys(diff).map(function (k) { return diff[k].label + ' → ' + diff[k].new; }).join(' · '));
+  bustCache_();
+  return { ok: true, id: id, message: '✅ Change request ' + id + ' submitted for ' + reqId + ' — pending your approval.' };
+}
+// Admin-only: view all pending requisition change requests.
+function listPendingReqChanges() {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = reqChangesSheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < d.length; i++) if ((d[i][6] || '') === 'Pending') {
+    var diff = {}; try { diff = JSON.parse(d[i][4] || '{}'); } catch (e) {}
+    out.push({ id: d[i][0], reqId: d[i][1], by: d[i][2], at: d[i][3], diff: diff, reason: d[i][5] });
+  }
+  return out;
+}
+// Admin-only: approve or reject a pending change request. Approving bumps Version and
+// snapshots the new state; rejecting leaves the requisition exactly as it was.
+function decideReqChange(changeId, decision, notes) {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return _g.error; // C-1: server-side auth
+  var csh = reqChangesSheet_(), cd = csh.getDataRange().getValues(), crow = -1;
+  for (var i = 1; i < cd.length; i++) if ((cd[i][0] || '').toString() === (changeId || '').toString()) { crow = i; break; }
+  if (crow < 0) return { error: 'Change request not found.' };
+  if ((cd[crow][6] || '').toString() !== 'Pending') return { error: 'Change request ' + changeId + ' was already decided.' };
+  var reqId = cd[crow][1], who = _g.name || _g.email, now = new Date(), approve = (decision || '').toString().toLowerCase().indexOf('approv') === 0;
+  csh.getRange(crow + 1, 7).setValue(approve ? 'Approved' : 'Rejected');
+  csh.getRange(crow + 1, 8, 1, 3).setValues([[who, now, notes || '']]);
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'); ensureReqApprovalCols_(sh);
+  var row = findReqRow_(sh, reqId);
+  if (row > 0) sh.getRange(row, 35).setValue(''); // clear the pending flag either way
+  if (approve && row > 0) {
+    var diff = {}; try { diff = JSON.parse(cd[crow][4] || '{}'); } catch (e) {}
+    var byField = {}; reqLockedFieldMap_().forEach(function (m) { byField[m[1]] = m; });
+    Object.keys(diff).forEach(function (k) { var m = byField[k]; if (m) sh.getRange(row, m[0] + 1).setValue(sanitizeCell_(diff[k].new)); });
+    var version = (parseInt(sh.getRange(row, 29).getValue(), 10) || 0) + 1;
+    sh.getRange(row, 29).setValue(version); sh.getRange(row, 32).setValue(who); sh.getRange(row, 33).setValue(now); sh.getRange(row, 34).setValue(notes || '');
+    snapshotReqVersion_(sh, row, reqId, version, who, 'Change request ' + changeId);
+    logAudit_(reqId.toString(), who + ' approved change request ' + changeId + ' (now v' + version + ').');
+  } else {
+    logAudit_(reqId.toString(), who + ' rejected change request ' + changeId + (notes ? ': ' + notes : '') + '.');
+  }
+  bustCache_();
+  return { ok: true, message: approve ? ('✅ ' + changeId + ' approved — ' + reqId + ' updated.') : ('❌ ' + changeId + ' rejected.') };
+}
+// Full version history (audit trail) for a requisition, newest first.
+function getReqVersionHistory(reqId) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = reqVersionsSheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === (reqId || '').toString()) {
+    var snap = {}; try { snap = JSON.parse(d[i][2] || '{}'); } catch (e) {}
+    out.push({ version: d[i][1], snapshot: snap, by: d[i][3], at: d[i][4], source: d[i][5] });
+  }
+  out.sort(function (a, b) { return (b.version || 0) - (a.version || 0); });
+  return out;
+}
+// Approval status/version/pending-change info for the requisition detail panel.
+function getReqApprovalInfo(reqId) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'); ensureReqApprovalCols_(sh);
+  var row = findReqRow_(sh, reqId); if (row < 0) return { error: 'Requisition not found.' };
+  var d = sh.getRange(row, 1, 1, 35).getValues()[0];
+  return { reqId: reqId, status: d[13], version: parseInt(d[28], 10) || 0, submittedBy: d[29], submittedAt: d[30],
+    approvedBy: d[31], approvedAt: d[32], decisionNotes: d[33], pendingChangeId: d[34] };
+}
+
 function createRequisition(o) {
   var _g = guard_(arguments, 'HiringManager'); if (_g.error) return _g.error; // C-1: server-side auth
   if (!o.title || !o.line_of_business || !o.hiring_manager)
     return "To create a requisition I need at least: title, line of business, and hiring manager.";
   var sheet = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions');
   if (!sheet) return "No Requisitions tab — run setupAtsTabs first.";
+  ensureReqApprovalCols_(sheet);
+  var who = _g.name || _g.email;
   var id = withScriptLock_(function () { // H-1: atomic ID mint + append
     var rid = nextReqId_(sheet, o.line_of_business, o.hiring_manager);
     sheet.appendRow(sanitizeRow_([rid, o.title, o.department || '', o.line_of_business, o.location || '', o.employment_type || '',
       o.level || '', o.hiring_manager, o.recruiter || '', o.openings || 1, o.priority || '', o.salary_min || '', o.salary_max || '',
-      'Open', new Date(), '', o.jd_link || '', o.notes || o.role_description || ''])); // C-2
+      'Pending Approval', new Date(), '', o.jd_link || '', o.notes || o.role_description || ''])); // C-2
     if (o.hm_email) { try { sheet.getRange(sheet.getLastRow(), 26).setValue(sanitizeCell_(o.hm_email)); } catch (e) {} }
+    sheet.getRange(sheet.getLastRow(), 29, 1, 3).setValues([[0, who, new Date()]]); // Version 0 = not yet approved
     return rid;
   });
-  upsertHiringManager_(o.hiring_manager, o.hm_email); bustCache_();
+  var hmInfo = upsertHiringManager_(o.hiring_manager, o.hm_email); bustCache_();
   try { sbSyncReq_(id); } catch (e) {}
-  return "✅ Requisition " + id + " created — " + o.title + " (" + o.line_of_business + ", HM " + o.hiring_manager + ").";
+  var msg = "✅ Requisition " + id + " submitted for approval — " + o.title + " (" + o.line_of_business + ", HM " + o.hiring_manager + "). It won't be open for sourcing until approved.";
+  if (hmInfo && hmInfo.isNew) { // M-11: let the creator know a new HM profile now exists, without leaking the raw token to a non-Admin
+    if (_g.role === 'Admin' && hmInfo.token) {
+      var base = ''; try { base = ScriptApp.getService().getUrl() || ''; } catch (e2) {}
+      if (base) msg += "\n\n👋 " + o.hiring_manager + " is new here — their ATS access link: " + base + "?u=" + hmInfo.token + " (share it with them directly).";
+    } else {
+      msg += "\n\n👋 " + o.hiring_manager + " is new here — an Admin can grab their access link from 🏢 Company → 👥 Manage hiring managers.";
+    }
+  }
+  return msg;
 }
 function listHiringManagers() {
   var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
@@ -2039,11 +2207,38 @@ function saveHiringManager(name, email) {
   var u = currentUser_(arguments); if (u.role !== 'Admin' && u.role !== 'Recruiter') return { error: '🔒 Only recruiters/admins.' };
   if (!name || !email || email.indexOf('@') < 0) return { error: 'Enter a name and a valid email.' };
   var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Users') || ss.insertSheet('Users');
-  if (sh.getLastRow() === 0) sh.getRange(1, 1, 1, 4).setValues([['Email', 'Name', 'Role', 'Active']]).setFontWeight('bold');
-  var d = sh.getDataRange().getValues(), found = false;
-  for (var i = 1; i < d.length; i++) { if ((d[i][1] || '').toString().trim().toLowerCase() === name.trim().toLowerCase()) { sh.getRange(i + 1, 1).setValue(email); if (!d[i][2]) sh.getRange(i + 1, 3).setValue('HiringManager'); found = true; break; } }
-  if (!found) sh.appendRow(sanitizeRow_([email, name, 'HiringManager', 'Yes'])); // C-2
-  return { ok: true, list: listHiringManagers() };
+  usersSheetEnsureHeaders_(sh);
+  var d = sh.getDataRange().getValues(), found = false, token = '';
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][1] || '').toString().trim().toLowerCase() === name.trim().toLowerCase()) {
+      var row = i + 1;
+      sh.getRange(row, 1).setValue(email);
+      if (!d[i][2]) sh.getRange(row, 3).setValue('HiringManager');
+      token = ensureUserRowToken_(sh, row); found = true; break;
+    }
+  }
+  if (!found) { token = Utilities.getUuid().replace(/-/g, '').slice(0, 12); sh.appendRow(sanitizeRow_([email, name, 'HiringManager', 'Yes', token, ''])); } // C-2
+  var link = ''; // M-11: only an Admin gets the raw token back — it's a login credential
+  if (u.role === 'Admin' && token) { var base = ''; try { base = ScriptApp.getService().getUrl() || ''; } catch (e) {} if (base) link = base + '?u=' + token; }
+  return { ok: true, list: listHiringManagers(), link: link };
+}
+// M-11: Admin-only — surfaces the access link for every existing hiring manager so one doesn't
+// have to be re-added just to retrieve it. Gated the same way teamAccess() gates tokens.
+function listHiringManagersLinks() {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return { error: _g.error }; // C-1: server-side auth — tokens are credentials
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Users');
+  if (!sh) return [];
+  usersSheetEnsureHeaders_(sh);
+  var d = sh.getDataRange().getValues(), base = ''; try { base = ScriptApp.getService().getUrl() || ''; } catch (e) {}
+  var out = [];
+  for (var i = 1; i < d.length; i++) {
+    var role = (d[i][2] || '').toString().toLowerCase();
+    if ((role.indexOf('hiring') > -1 || role.indexOf('manager') > -1) && d[i][1] && (d[i][3] || '').toString().toLowerCase() !== 'no') {
+      var tok = ensureUserRowToken_(sh, i + 1);
+      out.push({ name: d[i][1], email: d[i][0] || '', link: base ? (base + '?u=' + tok) : '' });
+    }
+  }
+  return out;
 }
 function removeHiringManager(name) {
   var u = currentUser_(arguments); if (u.role !== 'Admin' && u.role !== 'Recruiter') return { error: '🔒 Only recruiters/admins.' };
@@ -2053,17 +2248,36 @@ function removeHiringManager(name) {
   } catch (e) { return { error: e.message }; }
   return { ok: true, list: listHiringManagers() };
 }
+// M-11: Users-sheet rows need 6 columns (…, Token, Title) for ensureUserTokens_()/teamAccess()
+// to ever surface a working ?u= link. Hiring managers auto-registered here used to get a bare
+// 4-column row with NO token — they had no way to sign in until an Admin separately opened
+// Team & access (whose ensureUserTokens_() call would eventually backfill one). Now a token is
+// minted immediately, and the caller gets it back so it can be surfaced right away.
+function usersSheetEnsureHeaders_(sh) {
+  if (sh.getLastRow() === 0) sh.getRange(1, 1, 1, 6).setValues([['Email', 'Name', 'Role', 'Active', 'Token', 'Title']]).setFontWeight('bold');
+}
+function ensureUserRowToken_(sh, row) {
+  var tok = sh.getRange(row, 5).getValue();
+  if (!tok) { tok = Utilities.getUuid().replace(/-/g, '').slice(0, 12); sh.getRange(row, 5).setValue(tok); }
+  return tok;
+}
 function upsertHiringManager_(name, email) {
-  if (!name || !email) return;
+  if (!name || !email) return null;
   try {
     var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Users') || ss.insertSheet('Users');
-    if (sh.getLastRow() === 0) sh.getRange(1, 1, 1, 4).setValues([['Email', 'Name', 'Role', 'Active']]).setFontWeight('bold');
+    usersSheetEnsureHeaders_(sh);
     var d = sh.getDataRange().getValues();
     for (var i = 1; i < d.length; i++) {
-      if ((d[i][1] || '').toString().trim().toLowerCase() === name.trim().toLowerCase()) { if (!d[i][0] && email) sh.getRange(i + 1, 1).setValue(email); return; }
+      if ((d[i][1] || '').toString().trim().toLowerCase() === name.trim().toLowerCase()) {
+        var row = i + 1;
+        if (!d[i][0] && email) sh.getRange(row, 1).setValue(email);
+        return { isNew: false, token: ensureUserRowToken_(sh, row) };
+      }
     }
-    sh.appendRow(sanitizeRow_([email, name, 'HiringManager', 'Yes'])); // C-2
-  } catch (e) {}
+    var newTok = Utilities.getUuid().replace(/-/g, '').slice(0, 12);
+    sh.appendRow(sanitizeRow_([email, name, 'HiringManager', 'Yes', newTok, ''])); // C-2
+    return { isNew: true, token: newTok };
+  } catch (e) { return null; }
 }
 function parseJD(base64Data, mimeType) {
   var u = currentUser_(arguments);
@@ -2090,10 +2304,22 @@ function getReqAudit(reqId) {
   return getAudit_((reqId || '').toString()); }
 function editRequisition(o) {
   var u = currentUser_(arguments); if (u.role !== 'Admin' && u.role !== 'Recruiter') return { error: '🔒 Only recruiters/admins can edit requisitions.' };
-  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'), d = sh.getDataRange().getValues(), row = -1;
+  var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions'); ensureReqApprovalCols_(sh);
+  var d = sh.getDataRange().getValues(), row = -1;
   for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === (o.reqId || '').toString()) { row = i; break; }
   if (row < 0) return { error: 'Requisition not found.' };
-  var map = [[1, 'title', 'Title'], [2, 'department', 'Department'], [3, 'lob', 'Line of business'], [4, 'location', 'Location'], [5, 'employment', 'Employment type'], [6, 'level', 'Level'], [7, 'hm', 'Hiring manager'], [8, 'recruiter', 'Recruiter'], [9, 'openings', 'Openings'], [13, 'status', 'Status'], [17, 'notes', 'Notes'], [25, 'hm_email', 'HM email']];
+  var version = parseInt(d[row][28], 10) || 0, locked = reqLockedFieldMap_();
+  // M-4: once approved (Version >= 1), locked fields are immutable for anyone but Admin —
+  // Recruiter/HiringManager must go through submitReqChangeRequest instead.
+  if (version > 0 && u.role !== 'Admin') {
+    var touched = locked.filter(function (m) {
+      if (o[m[1]] === undefined) return false;
+      return (o[m[1]] == null ? '' : o[m[1]]).toString() !== (d[row][m[0]] == null ? '' : d[row][m[0]]).toString();
+    });
+    if (touched.length) return { error: '🔒 ' + o.reqId + ' is an approved requisition (v' + version + '). ' +
+      touched.map(function (t) { return t[2]; }).join(', ') + ' can\'t be edited directly — submit a change request for approval.' };
+  }
+  var map = locked.concat([[8, 'recruiter', 'Recruiter'], [13, 'status', 'Status']]);
   var changes = [];
   map.forEach(function (m) {
     if (o[m[1]] === undefined) return;
@@ -2101,7 +2327,15 @@ function editRequisition(o) {
     if (nv !== ov) { sh.getRange(row + 1, m[0] + 1).setValue(sanitizeCell_(nv)); changes.push(m[2] + ': "' + ov + '" → "' + nv + '"'); }
   });
   if (o.hm && o.hm_email) { try { upsertHiringManager_(o.hm, o.hm_email); } catch (e) {} }
-  if (changes.length) { logAudit_((o.reqId || '').toString(), changes.join(' · ')); bustCache_(); }
+  if (changes.length) {
+    logAudit_((o.reqId || '').toString(), changes.join(' · '));
+    if (version > 0 && u.role === 'Admin') { // Admin direct edit to an approved req: bump version + snapshot for audit
+      var nv2 = version + 1, who = u.name || u.email, now = new Date();
+      sh.getRange(row + 1, 29).setValue(nv2); sh.getRange(row + 1, 32).setValue(who); sh.getRange(row + 1, 33).setValue(now);
+      snapshotReqVersion_(sh, row + 1, o.reqId, nv2, who, 'Admin direct edit');
+    }
+    bustCache_();
+  }
   try { sbSyncReq_((o.reqId || '').toString()); } catch (e) {}
   return { ok: true, changed: changes.length };
 }
@@ -2185,7 +2419,7 @@ function addCandidateManual(o) {
   var sheet = trackerSheet_();
   var r = withScriptLock_(function () { // H-1: atomic append + ID mint
     sheet.appendRow(sanitizeRow_([new Date(), o.name, o.email || '', '', 'Manual', '', 'New', '', '', '', ''])); // C-2
-    var rr = sheet.getLastRow(); sheet.getRange(rr, 31).setValue(nextCandidateId_()); return rr;
+    var rr = sheet.getLastRow(); sheet.getRange(rr, 31).setValue(nextCandidateId_()); stampApplicationId_(sheet, rr); return rr;
   });
   if (o.phone) sheet.getRange(r, 13).setValue(sanitizeCell_(o.phone));
   if (o.location) sheet.getRange(r, 14).setValue(sanitizeCell_(o.location));
@@ -2314,6 +2548,81 @@ function removeTeamMember(email) {
 }
 
 // ---------- CANDIDATE IDS ----------
+// ---------- CANDIDATE IDENTITY vs APPLICATION (M-12) ----------
+// Candidate ID (col 31) identifies the PERSON and is reused across every role they ever
+// apply to. Application ID (col 41) identifies ONE application to ONE requisition — a
+// rejection or withdrawal closes only that application, never the person's other ones.
+function nextApplicationId_() {
+  var p = PropertiesService.getScriptProperties(), n = (parseInt(p.getProperty('APP_SEQ') || '0', 10)) + 1;
+  p.setProperty('APP_SEQ', String(n));
+  return 'APP-' + ('00000' + n).slice(-5);
+}
+function ensureApplicationIdCol_(sh) {
+  if ((sh.getRange(1, 41).getValue() || '').toString() !== 'Application ID') sh.getRange(1, 41).setValue('Application ID').setFontWeight('bold');
+}
+// Call right after appendRow+candId on every NEW application row.
+function stampApplicationId_(sh, row) {
+  ensureApplicationIdCol_(sh);
+  var id = nextApplicationId_(); sh.getRange(row, 41).setValue(id); return id;
+}
+// All applications (rows) for one person, newest first — same Candidate ID across every
+// role they've been in the pipeline for, per the "one candidate, many applications" model.
+function getCandidateHistory(candidateIdOrEmail) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var key = (candidateIdOrEmail || '').toString().trim().toLowerCase(); if (!key) return [];
+  var sh = trackerSheet_(); ensureApplicationIdCol_(sh);
+  var d = sh.getDataRange().getValues(), candId = '', out = [];
+  for (var i = 1; i < d.length; i++) {
+    var cid = (d[i][30] || '').toString(), em = (d[i][2] || '').toString().toLowerCase();
+    if (cid.toLowerCase() === key || em === key) { candId = cid; break; }
+  }
+  if (!candId) return [];
+  for (var j = 1; j < d.length; j++) if ((d[j][30] || '').toString() === candId)
+    out.push({ appId: d[j][40] || '', reqId: d[j][11] || '', stage: d[j][6] || '', source: d[j][4] || '', dateReceived: d[j][0] });
+  out.sort(function (a, b) { return new Date(b.dateReceived) - new Date(a.dateReceived); });
+  return out;
+}
+// ---------- DO NOT CONSIDER (global, person-level — separate from a per-application reject) ----------
+function dncSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Do Not Consider');
+  if (!sh) { sh = ss.insertSheet('Do Not Consider'); sh.getRange(1, 1, 1, 6).setValues([['Candidate ID', 'Name', 'Email', 'Reason', 'Set By', 'Set At']]).setFontWeight('bold'); }
+  return sh;
+}
+function isDoNotConsider_(email) {
+  if (!email) return null;
+  var em = email.toString().trim().toLowerCase(), d = dncSheet_().getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][2] || '').toString().trim().toLowerCase() === em) return { reason: d[i][3] || '' };
+  return null;
+}
+function setDoNotConsider(candidateIdOrEmail, reason) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
+  var found = findCandidateByAny_('', candidateIdOrEmail) || findCandidateByAny_(candidateIdOrEmail, '');
+  if (!found) return { error: 'Candidate not found.' };
+  var sh = dncSheet_(), d = sh.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][2] || '').toString().toLowerCase() === (found.email || '').toLowerCase()) {
+    sh.getRange(i + 1, 4, 1, 3).setValues([[reason || '', _g.name || _g.email, new Date()]]);
+    return { ok: true };
+  }
+  sh.appendRow(sanitizeRow_([found.candId, found.name, found.email, reason || '', _g.name || _g.email, new Date()])); // C-2
+  logAudit_(found.candId, (_g.name || _g.email) + ' flagged Do Not Consider: ' + (reason || '(no reason given)'));
+  return { ok: true };
+}
+function clearDoNotConsider(candidateIdOrEmail) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
+  var found = findCandidateByAny_('', candidateIdOrEmail) || findCandidateByAny_(candidateIdOrEmail, '');
+  var email = found ? found.email : candidateIdOrEmail;
+  var sh = dncSheet_(), d = sh.getDataRange().getValues();
+  for (var i = d.length - 1; i >= 1; i--) if ((d[i][2] || '').toString().toLowerCase() === (email || '').toString().toLowerCase()) sh.deleteRow(i + 1);
+  if (found) logAudit_(found.candId, (_g.name || _g.email) + ' cleared Do Not Consider.');
+  return { ok: true };
+}
+function checkDoNotConsider(candidateIdOrEmail) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var found = findCandidateByAny_('', candidateIdOrEmail) || findCandidateByAny_(candidateIdOrEmail, '');
+  var email = found ? found.email : candidateIdOrEmail;
+  var hit = isDoNotConsider_(email);
+  return { flagged: !!hit, reason: hit ? hit.reason : '' };
+}
 function nextCandidateId_() {
   var p = PropertiesService.getScriptProperties();
   var n = (parseInt(p.getProperty('CAND_SEQ') || '0', 10)) + 1;
@@ -2508,7 +2817,7 @@ function emailAnalyticsReport(hm, to) {
     '\nBy requisition:\n' + (Object.keys(a.byReq).length ? Object.keys(a.byReq).map(function (k) { return '  • ' + k + ': ' + a.byReq[k]; }).join('\n') : '  (none)');
   var link = ''; try { link = orgContext_().reportLink; } catch (e) {}
   if (link) body += '\n\n📊 Live dashboard (open and pick your name in the filter):\n' + link;
-  body += '\n\nGenerated by AgentATS.';
+  body += '\n\nGenerated by Healthy18 ATS.';
   try { GmailApp.sendEmail(to, 'Hiring report' + (hm ? ' — ' + hm : ''), body); } catch (e) { return '⚠️ ' + e.message; }
   return '✅ Report emailed to ' + to + '.';
 }
@@ -2872,43 +3181,139 @@ function aiBrief(candId) {
 }
 
 // ---------- INTERVIEW SCHEDULING (multi-interviewer + RSVP tracking, Prelude-style) ----------
+function ensureSchedulingModeCol_(sh) {
+  if ((sh.getRange(1, 17).getValue() || '').toString() !== 'Scheduling Mode') sh.getRange(1, 17).setValue('Scheduling Mode').setFontWeight('bold');
+}
+function defaultSchedulingMode_(source) {
+  var s = (source || '').toLowerCase();
+  if (s.indexOf('agency:') === 0 || s.indexOf('linkedin') > -1 || s.indexOf('import') > -1 || s.indexOf('consult') > -1) return 'External Recruiter';
+  return 'Internal HR'; // Careers Page, Manual, Sourced, Job Posting Form, etc.
+}
+// Recruiter/Admin: what scheduling mode should be pre-selected for this candidate, based on
+// how they were sourced. They can always override it (including to Self-serve) in the UI.
+function getSchedulingContext(candId) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = trackerSheet_().getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][30] || '').toString() === candId) return { source: d[i][4] || '', defaultMode: defaultSchedulingMode_(d[i][4]) };
+  return { source: '', defaultMode: 'Internal HR' };
+}
+// Core booking logic shared by the recruiter-driven flow (scheduleInterview2) and the
+// candidate self-serve flow (submitSelfSchedule) — one place that creates the Calendar event,
+// the Meet link, the Interviews row, and moves the Tracker stage, so both paths stay in sync.
+function bookInterview_(candId, stage, interviewersStr, datetimeIso, round, opts) {
+  opts = opts || {};
+  var ss = SpreadsheetApp.openById(SHEET_ID), tr = ss.getSheetByName('Tracker'), d = tr.getDataRange().getValues(), row = -1;
+  for (var i = 1; i < d.length; i++) if ((d[i][30] || '').toString() === candId) { row = i; break; }
+  if (row < 0) return { error: 'Candidate not found.' };
+  var cand = d[row], email = (cand[2] || '').toString(), reqId = (cand[11] || '').toString();
+  var start = new Date(datetimeIso); if (isNaN(start.getTime())) return { error: 'I could not read that date/time.' };
+  var end = new Date(start.getTime() + 45 * 60000);
+  var interviewers = (interviewersStr || '').split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > -1; });
+  if (opts.mode === 'Self-serve' && !interviewers.length) return { error: 'No interviewer(s) attached to this scheduling link.' };
+  var bookFn = function () {
+    var guests = [email].concat(interviewers).filter(Boolean).map(function (e) { return { email: e }; });
+    var ev = Calendar.Events.insert({
+      summary: (stage || 'Interview') + ': ' + cand[1], description: 'Healthy18 ATS interview.',
+      start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() }, attendees: guests,
+      conferenceData: { createRequest: { requestId: Utilities.getUuid(), conferenceSolutionKey: { type: 'hangoutsMeet' } } }
+    }, 'primary', { conferenceDataVersion: 1, sendUpdates: 'all' });
+    var meet = ev.hangoutLink || '';
+    var ish = ss.getSheetByName('Interviews') || ss.insertSheet('Interviews');
+    if (ish.getLastRow() === 0) ish.appendRow(['Interview ID', 'Candidate ID', 'Candidate Name', 'Req ID', 'Stage', 'Interviewers', 'Date/Time', 'Event ID', 'Meet Link', 'Status']);
+    ensureInterviewDecisionCols_(ish); ensureSchedulingModeCol_(ish);
+    // L-3 FIX: interview IDs come from a persistent counter under the script lock (was
+    // 'INT-' + lastRow, which COLLIDES after any row deletion). Self-seeds from the sheet.
+    var iid = withScriptLock_(function () {
+      var pp = PropertiesService.getScriptProperties();
+      var n = parseInt(pp.getProperty('INT_SEQ') || '0', 10);
+      if (!n) n = Math.max(0, ish.getLastRow() - 1); // seed once from existing rows
+      n++; pp.setProperty('INT_SEQ', String(n));
+      return 'INT-' + ('000' + n).slice(-3);
+    });
+    ish.appendRow(sanitizeRow_([iid, candId, cand[1], reqId, stage || 'Interview', interviewers.join(', '),
+      Utilities.formatDate(start, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'), ev.id, meet, 'Scheduled'])); // C-2
+    if (round) ish.getRange(ish.getLastRow(), 11).setValue(parseInt(round, 10) || '');
+    if (opts.mode) ish.getRange(ish.getLastRow(), 17).setValue(opts.mode);
+    tr.getRange(row + 1, 7).setValue('Interview Scheduled');
+    recordStage_(candId, cand[1], 'Interview Scheduled');
+    notifyChat_('📅 Interview scheduled — ' + cand[1] + ' (' + (stage || 'Interview') + ') on ' + start.toLocaleString() + (opts.mode ? ' [' + opts.mode + ']' : ''));
+    var prep = '';
+    if (opts.prepPack && email) { try { sendPrepPack_(email, cand[1], reqId, stage || 'interview'); prep = ' · prep pack emailed to candidate'; } catch (e) {} }
+    return { ok: true, interviewId: iid, meet: meet, guestCount: guests.length,
+      message: '✅ ' + (stage || 'Interview') + ' scheduled for ' + cand[1] + ' on ' + start.toLocaleString() + (meet ? '. Meet: ' + meet : '') + '. Invites sent to ' + guests.length + ' people.' + prep };
+  };
+  // Self-serve is the one path where two people could race for the same slot (nobody
+  // manually confirmed it first), so re-check the interviewers' calendars under the lock
+  // right before booking.
+  if (opts.mode === 'Self-serve' && !opts.skipConflictCheck) {
+    return withScriptLock_(function () {
+      try {
+        var fb = Calendar.Freebusy.query({ timeMin: start.toISOString(), timeMax: end.toISOString(), items: interviewers.map(function (e) { return { id: e }; }) });
+        var cals = fb.calendars || {}, conflict = false;
+        interviewers.forEach(function (e) { ((cals[e] && cals[e].busy) || []).forEach(function (b) { if (start.getTime() < new Date(b.end).getTime() && end.getTime() > new Date(b.start).getTime()) conflict = true; }); });
+        if (conflict) return { error: 'That slot was just taken — please pick another.' };
+      } catch (e) {} // if we can't verify, fall through and book anyway rather than block the candidate
+      return bookFn();
+    });
+  }
+  return bookFn();
+}
 function scheduleInterview2(o) {
   var u = currentUser_(arguments);
   if (u.role !== 'Admin' && u.role !== 'Recruiter') return '🔒 Only recruiters/admins can schedule.';
-  var ss = SpreadsheetApp.openById(SHEET_ID), tr = ss.getSheetByName('Tracker'), d = tr.getDataRange().getValues(), row = -1;
-  for (var i = 1; i < d.length; i++) if ((d[i][30] || '').toString() === o.candId) { row = i; break; }
-  if (row < 0) return 'Candidate not found.';
+  var r = bookInterview_(o.candId, o.stage, o.interviewers, o.datetime, o.round, { prepPack: o.prepPack, mode: o.mode || 'Internal HR' });
+  return r.error || r.message;
+}
+function selfScheduleSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('SelfSchedule');
+  if (!sh) { sh = ss.insertSheet('SelfSchedule'); sh.appendRow(['Token', 'Candidate ID', 'Candidate Name', 'Req ID', 'Stage', 'Round', 'Interviewers', 'Created At', 'Created By', 'Status', 'Interview ID']); sh.getRange(1, 1, 1, 11).setFontWeight('bold'); }
+  return sh;
+}
+function findSelfScheduleRow_(sh, token) {
+  var d = sh.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === (token || '').toString()) return i + 1;
+  return -1;
+}
+// Recruiter/Admin: mints a candidate-facing link so THEY pick their own interview time
+// (Self-serve mode) instead of a recruiter proposing one.
+function createSelfScheduleLink(candId, stage, interviewers, round) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var ids = (interviewers || '').split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > -1; });
+  if (!ids.length) return { error: 'Add at least one interviewer email first.' };
+  var d = trackerSheet_().getDataRange().getValues(), row = -1;
+  for (var i = 1; i < d.length; i++) if ((d[i][30] || '').toString() === candId) { row = i; break; }
+  if (row < 0) return { error: 'Candidate not found.' };
   var cand = d[row], email = (cand[2] || '').toString(), reqId = (cand[11] || '').toString();
-  var start = new Date(o.datetime); if (isNaN(start.getTime())) return 'I could not read that date/time.';
-  var end = new Date(start.getTime() + 45 * 60000);
-  var interviewers = (o.interviewers || '').split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > -1; });
-  var guests = [email].concat(interviewers).filter(Boolean).map(function (e) { return { email: e }; });
-  var ev = Calendar.Events.insert({
-    summary: (o.stage || 'Interview') + ': ' + cand[1], description: 'AgentATS interview.',
-    start: { dateTime: start.toISOString() }, end: { dateTime: end.toISOString() }, attendees: guests,
-    conferenceData: { createRequest: { requestId: Utilities.getUuid(), conferenceSolutionKey: { type: 'hangoutsMeet' } } }
-  }, 'primary', { conferenceDataVersion: 1, sendUpdates: 'all' });
-  var meet = ev.hangoutLink || '';
-  var ish = ss.getSheetByName('Interviews') || ss.insertSheet('Interviews');
-  if (ish.getLastRow() === 0) ish.appendRow(['Interview ID','Candidate ID','Candidate Name','Req ID','Stage','Interviewers','Date/Time','Event ID','Meet Link','Status']);
-  // L-3 FIX: interview IDs come from a persistent counter under the script lock (was
-  // 'INT-' + lastRow, which COLLIDES after any row deletion). Self-seeds from the sheet.
-  var iid = withScriptLock_(function () {
-    var pp = PropertiesService.getScriptProperties();
-    var n = parseInt(pp.getProperty('INT_SEQ') || '0', 10);
-    if (!n) n = Math.max(0, ish.getLastRow() - 1); // seed once from existing rows
-    n++; pp.setProperty('INT_SEQ', String(n));
-    return 'INT-' + ('000' + n).slice(-3);
-  });
-  ish.appendRow(sanitizeRow_([iid, o.candId, cand[1], reqId, o.stage || 'Interview', interviewers.join(', '),
-    Utilities.formatDate(start, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm'), ev.id, meet, 'Scheduled'])); // C-2
-  tr.getRange(row + 1, 7).setValue('Interview Scheduled');
-  recordStage_(o.candId, cand[1], 'Interview Scheduled');
-  notifyChat_('📅 Interview scheduled — ' + cand[1] + ' (' + (o.stage || 'Interview') + ') on ' + start.toLocaleString());
-  var prep = '';
-  if (o.prepPack && email) { try { sendPrepPack_(email, cand[1], reqId, o.stage || 'interview'); prep = ' · prep pack emailed to candidate'; } catch (e) {} }
-  return '✅ ' + (o.stage || 'Interview') + ' scheduled for ' + cand[1] + ' on ' + start.toLocaleString() +
-    (meet ? '. Meet: ' + meet : '') + '. Invites sent to ' + guests.length + ' people.' + prep;
+  if (!email) return { error: 'This candidate has no email on file — can\'t send a self-serve link.' };
+  var token = Utilities.getUuid();
+  selfScheduleSheet_().appendRow(sanitizeRow_([token, candId, cand[1], reqId, stage || 'Interview', round || '', ids.join(', '), new Date(), _g.name || _g.email, 'Pending', ''])); // C-2
+  var link = getAppUrl() + '?page=selfschedule&t=' + token;
+  try {
+    GmailApp.sendEmail(email, 'Pick a time for your ' + (stage || 'interview') + ' interview',
+      'Hi ' + (cand[1] || 'there') + ',\n\nPlease pick a time that works for you here:\n' + link + '\n\nBest,\nThe Recruiting Team');
+  } catch (e) {}
+  return { ok: true, link: link, message: '✅ Self-serve link emailed to ' + (cand[1] || 'the candidate') + '. You can also copy it: ' + link };
+}
+// Public, token-authenticated (no login) — mirrors Agency.html's pattern of trusting an
+// unguessable token instead of a user session.
+function selfScheduleInfo(token) {
+  var sh = selfScheduleSheet_(), row = findSelfScheduleRow_(sh, token);
+  if (row < 0) return { error: 'This link is no longer valid.' };
+  var d = sh.getRange(row, 1, 1, 11).getValues()[0];
+  if ((d[9] || '') !== 'Pending') return { error: 'This interview has already been scheduled.' };
+  var ids = (d[6] || '').toString().split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > -1; });
+  var fs = computeFreeSlots_(ids, null, null, null);
+  return { candName: d[2], stage: d[4], slots: fs.slots, note: fs.note };
+}
+function submitSelfSchedule(token, iso) {
+  var sh = selfScheduleSheet_(), row = findSelfScheduleRow_(sh, token);
+  if (row < 0) return { error: 'This link is no longer valid.' };
+  var d = sh.getRange(row, 1, 1, 11).getValues()[0];
+  if ((d[9] || '') !== 'Pending') return { error: 'This interview has already been scheduled.' };
+  var r = bookInterview_(d[1], d[4], d[6], iso, d[5], { prepPack: true, mode: 'Self-serve' });
+  if (r.error) return r;
+  sh.getRange(row, 10, 1, 2).setValues([['Booked', r.interviewId]]);
+  return { ok: true, message: r.message };
 }
 function sendPrepPack_(email, name, reqId, stage) {
   if (!email) return;
@@ -2964,9 +3369,367 @@ function getInterviews(candId) {
   function cl(v) { if (v == null) return ''; if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd HH:mm'); return String(v); }
   for (var i = 1; i < d.length; i++) {
     if ((d[i][1] || '').toString() !== candId) continue;
-    out.push({ id: cl(d[i][0]), stage: cl(d[i][4]), interviewers: cl(d[i][5]), when: cl(d[i][6]), eventId: cl(d[i][7]), meet: cl(d[i][8]), status: cl(d[i][9]) });
+    out.push({ id: cl(d[i][0]), stage: cl(d[i][4]), interviewers: cl(d[i][5]), when: cl(d[i][6]), eventId: cl(d[i][7]), meet: cl(d[i][8]), status: cl(d[i][9]),
+      reqId: cl(d[i][3]), round: cl(d[i][10]), recommendation: cl(d[i][11]), decisionStatus: cl(d[i][12]) });
   }
   return out;
+}
+// ---------- INTERVIEW ROUND ENGINE (checklist feedback + decoupled Sahil decision) ----------
+// Interview Status (col 10: Scheduled/Completed) is set by the interviewer submitting
+// feedback. Interviewer Recommendation (col 12: Proceed/Hold/Reject) is their input.
+// Decision Status (col 13: Pending Decision/Proceed/Reject/Select) is Admin-only and is the
+// ONLY thing that moves the candidate's Stage — so "what the interviewer thought" and "what
+// was decided" are always both on record, per the audit-trail requirement.
+function ensureInterviewDecisionCols_(sh) {
+  var headers = ['Round #', 'Interviewer Recommendation', 'Decision Status', 'Decided By', 'Decided At', 'Decision Notes'];
+  var existing = sh.getRange(1, 11, 1, 6).getValues()[0], need = false;
+  for (var i = 0; i < 6; i++) if ((existing[i] || '').toString() !== headers[i]) { need = true; break; }
+  if (need) sh.getRange(1, 11, 1, 6).setValues([headers]).setFontWeight('bold');
+}
+function findInterviewRow_(ish, interviewId) {
+  var d = ish.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === (interviewId || '').toString()) return i + 1;
+  return -1;
+}
+// Competency checklist for one round, pulled from the requisition's saved interview plan
+// (suggestInterviewPlan/saveReqPlan) so the interviewer sees exactly what they were asked
+// to assess — matched by round name (the same "Stage" text used when scheduling).
+function getRoundChecklist(reqId, roundLabel) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var plan = {}; try { plan = JSON.parse(getReqPlan(reqId) || '{}'); } catch (e) { plan = {}; }
+  var rounds = plan.rounds || [], match = null;
+  for (var i = 0; i < rounds.length; i++) if ((rounds[i].name || '').toString().toLowerCase() === (roundLabel || '').toString().toLowerCase()) { match = rounds[i]; break; }
+  return { competencies: (match && match.competencies) || [], roundType: match ? match.type : '' };
+}
+// Interviewer: submit checklist feedback for one scheduled interview. `checklist` is
+// [{competency, rating}] with rating Strong/Adequate/Weak. Marks Interview Status Completed
+// and Decision Status "Pending Decision" — it does NOT touch the candidate's Stage.
+function submitRoundFeedback(interviewId, checklist, recommendation, comments) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return _g.error; // C-1: server-side auth
+  var ish = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Interviews'); if (!ish) return { error: 'No interviews scheduled yet.' };
+  ensureInterviewDecisionCols_(ish);
+  var row = findInterviewRow_(ish, interviewId); if (row < 0) return { error: 'Interview not found.' };
+  var d = ish.getRange(row, 1, 1, 16).getValues()[0];
+  var candId = d[1], candName = d[2], reqId = d[3], stage = d[4];
+  ish.getRange(row, 10).setValue('Completed');
+  ish.getRange(row, 12).setValue(recommendation || '');
+  ish.getRange(row, 13).setValue('Pending Decision');
+  var checklistText = (checklist || []).map(function (c) { return c.competency + ': ' + c.rating; }).join('; ');
+  feedbackSheet_().appendRow(sanitizeRow_([new Date(), candId, candName, '', _g.name || _g.email, stage, '', recommendation || '',
+    '', '', (checklistText ? checklistText + (comments ? ' | ' : '') : '') + (comments || ''), 'Round checklist'])); // C-2
+  logAudit_(candId, (_g.name || _g.email) + ' submitted ' + stage + ' feedback: ' + (recommendation || '') + '. Awaiting decision.');
+  notifyChat_('📝 ' + stage + ' feedback in for ' + candName + ' — ' + (recommendation || '') + ', awaiting decision.');
+  return { ok: true, message: '✅ Feedback submitted for ' + stage + '. Awaiting decision.' };
+}
+// Admin-only: the ONLY function that turns interviewer input into a candidate-stage move.
+// decision: 'Proceed' (advance to the next round), 'Reject' (terminal — closes just this
+// application), or 'Select' (final-round hire decision, opens HR compensation/offer).
+function decideRound(interviewId, decision, notes) {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return _g.error; // C-1: server-side auth
+  var ish = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Interviews'); if (!ish) return { error: 'No interviews scheduled yet.' };
+  ensureInterviewDecisionCols_(ish);
+  var row = findInterviewRow_(ish, interviewId); if (row < 0) return { error: 'Interview not found.' };
+  var d = ish.getRange(row, 1, 1, 16).getValues()[0];
+  var candId = d[1], candName = d[2], stage = d[4], roundNum = parseInt(d[10], 10) || 0;
+  var who = _g.name || _g.email, now = new Date();
+  ish.getRange(row, 13, 1, 3).setValues([[decision, who, now]]);
+  ish.getRange(row, 16).setValue(notes || '');
+  var newStage = decision === 'Reject' ? ('Closed — ' + stage + ' Reject') : (decision === 'Select' ? 'Selected' : (roundNum ? ('Round ' + (roundNum + 1)) : (stage + ' Passed')));
+  var tr = trackerSheet_(), trow = findRowById_(tr, candId);
+  if (trow > 0) { tr.getRange(trow, 7).setValue(newStage); recordStage_(candId, candName, newStage); }
+  logAudit_(candId, who + ' decided ' + stage + ': ' + decision + (notes ? ' — ' + notes : '') + '. Stage → ' + newStage + '.');
+  notifyChat_((decision === 'Reject' ? '✖' : '✅') + ' ' + candName + ' — ' + stage + ' decision: ' + decision + ' → ' + newStage);
+  return { ok: true, message: '✅ Decision recorded: ' + decision + '. Candidate is now "' + newStage + '".' };
+}
+// Admin queue: every completed round still waiting on a decision, across all candidates.
+function getPendingRoundDecisions() {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var ish = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Interviews'); if (!ish) return [];
+  ensureInterviewDecisionCols_(ish);
+  var d = ish.getDataRange().getValues(), out = [], tz = Session.getScriptTimeZone();
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][9] || '') !== 'Completed' || (d[i][12] || '') !== 'Pending Decision') continue;
+    out.push({ interviewId: d[i][0], candId: d[i][1], candName: d[i][2], reqId: d[i][3], stage: d[i][4],
+      recommendation: d[i][11] || '', when: (d[i][6] instanceof Date) ? Utilities.formatDate(d[i][6], tz, 'yyyy-MM-dd HH:mm') : String(d[i][6] || '') });
+  }
+  return out;
+}
+// ---------- OFFER WORKFLOW ----------
+// Status progression: Pending Approval -> Offer Approved -> Extended -> Accepted/Declined ->
+// (if Accepted) Joined/No-show. Recruiter proposes within the requisition's approved budget
+// (salary_min/salary_max); Admin has final approval — same split as everything else in this
+// app (recruiter drafts/executes, Admin approves).
+function offersSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Offers');
+  if (!sh) {
+    sh = ss.insertSheet('Offers');
+    sh.appendRow(['Offer ID', 'Candidate ID', 'Candidate Name', 'Req ID', 'Proposed CTC', 'Proposed By', 'Proposed At',
+      'Status', 'Approved By', 'Approved At', 'Decision Notes', 'Extended At', 'Outcome At', 'Joining Outcome', 'Joining Outcome At']);
+    sh.getRange(1, 1, 1, 15).setFontWeight('bold');
+  }
+  return sh;
+}
+function findOfferRow_(sh, offerId) {
+  var d = sh.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === (offerId || '').toString()) return i + 1;
+  return -1;
+}
+function nextOfferId_() {
+  return withScriptLock_(function () {
+    var pp = PropertiesService.getScriptProperties();
+    var n = parseInt(pp.getProperty('OFFER_SEQ') || '0', 10) + 1;
+    pp.setProperty('OFFER_SEQ', String(n));
+    return 'OFF-' + ('000' + n).slice(-3);
+  });
+}
+function isTerminalStage_(stage) {
+  var sl = (stage || '').toString().toLowerCase();
+  return sl.indexOf('reject') > -1 || sl.indexOf('hire') > -1 || sl.indexOf('onboard') > -1 || sl.indexOf('talent pool') > -1 ||
+    sl.indexOf('declin') > -1 || sl.indexOf('closed') > -1 || sl.indexOf('select') > -1 || sl.indexOf('no-show') > -1 || sl.indexOf('joined') > -1;
+}
+// Recruiter/Admin: draft an offer. Flags (but doesn't hard-block) a CTC outside the
+// requisition's approved salary band — Admin still has to approve every offer regardless, so
+// an out-of-band ask surfaces there rather than being silently rejected by the system before
+// the two of them can talk it through.
+function proposeOffer(candId, ctc, notes) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = trackerSheet_().getDataRange().getValues(), row = -1;
+  for (var i = 1; i < d.length; i++) if ((d[i][30] || '').toString() === candId) { row = i; break; }
+  if (row < 0) return { error: 'Candidate not found.' };
+  var cand = d[row], reqId = (cand[11] || '').toString();
+  var amount = parseFloat(ctc); if (!amount || amount <= 0) return { error: 'Enter a valid proposed CTC.' };
+  var rq = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions').getDataRange().getValues(), min = null, max = null;
+  for (var j = 1; j < rq.length; j++) if ((rq[j][0] || '').toString() === reqId) { min = parseFloat(rq[j][11]) || null; max = parseFloat(rq[j][12]) || null; break; }
+  var overBudget = (max != null && amount > max);
+  var offerId = nextOfferId_();
+  offersSheet_().appendRow(sanitizeRow_([offerId, candId, cand[1], reqId, amount, _g.name || _g.email, new Date(),
+    'Pending Approval', '', '', notes || '', '', '', '', ''])); // C-2
+  logAudit_(candId, (_g.name || _g.email) + ' proposed an offer (' + offerId + '): ' + amount + (overBudget ? ' — ABOVE approved band (max ' + max + ')' : '') + '.');
+  notifyChat_('💰 Offer proposed for ' + cand[1] + ' (' + offerId + ')' + (overBudget ? ' ⚠️ above approved budget — needs a look' : '') + '.');
+  return { ok: true, offerId: offerId, overBudget: overBudget, min: min, max: max,
+    message: '✅ Offer ' + offerId + ' proposed for ' + cand[1] + (overBudget ? '. ⚠️ This is above the approved band (max ' + max + ') — flagged for Admin.' : ' — awaiting approval.') };
+}
+function approveOffer(offerId, notes) {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var sh = offersSheet_(), row = findOfferRow_(sh, offerId); if (row < 0) return { error: 'Offer not found.' };
+  var d = sh.getRange(row, 1, 1, 15).getValues()[0]; if ((d[7] || '') !== 'Pending Approval') return { error: 'This offer is not pending approval.' };
+  sh.getRange(row, 8, 1, 3).setValues([['Offer Approved', _g.name || _g.email, new Date()]]);
+  if (notes) sh.getRange(row, 11).setValue(notes);
+  logAudit_(d[1], (_g.name || _g.email) + ' approved offer ' + offerId + ' (' + d[4] + ').');
+  notifyChat_('✅ Offer approved for ' + d[2] + ' (' + offerId + ').');
+  return { ok: true, message: '✅ Offer ' + offerId + ' approved. The recruiter can now extend it.' };
+}
+function rejectOfferProposal(offerId, reason) {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var sh = offersSheet_(), row = findOfferRow_(sh, offerId); if (row < 0) return { error: 'Offer not found.' };
+  var d = sh.getRange(row, 1, 1, 15).getValues()[0]; if ((d[7] || '') !== 'Pending Approval') return { error: 'This offer is not pending approval.' };
+  sh.getRange(row, 8, 1, 3).setValues([['Rejected', _g.name || _g.email, new Date()]]);
+  if (reason) sh.getRange(row, 11).setValue(reason);
+  logAudit_(d[1], (_g.name || _g.email) + ' rejected offer proposal ' + offerId + (reason ? ': ' + reason : '') + '.');
+  return { ok: true, message: '✅ Offer ' + offerId + ' rejected — the recruiter can propose a new one.' };
+}
+// Recruiter/Admin: mark the (already Admin-approved) offer as sent to the candidate. Sends a
+// deliberately generic email — no comp figures — since the actual offer letter/terms go out
+// through the recruiter's own channel; this just gives the candidate a heads-up and records
+// the milestone.
+function extendOffer(offerId) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var sh = offersSheet_(), row = findOfferRow_(sh, offerId); if (row < 0) return { error: 'Offer not found.' };
+  var d = sh.getRange(row, 1, 1, 15).getValues()[0]; if ((d[7] || '') !== 'Offer Approved') return { error: 'This offer has not been approved yet.' };
+  sh.getRange(row, 8).setValue('Extended'); sh.getRange(row, 12).setValue(new Date());
+  var td = trackerSheet_().getDataRange().getValues();
+  for (var i = 1; i < td.length; i++) {
+    if ((td[i][30] || '').toString() !== d[1]) continue;
+    var email = td[i][2];
+    if (email) { try { GmailApp.sendEmail(email, 'An update on your application', 'Hi ' + (d[2] || 'there') + ',\n\nGood news — we would like to extend you an offer. Your recruiter will be in touch shortly with the full details.\n\nBest,\nThe Recruiting Team'); } catch (e) {} }
+    break;
+  }
+  logAudit_(d[1], (_g.name || _g.email) + ' extended offer ' + offerId + ' to ' + d[2] + '.');
+  notifyChat_('📨 Offer extended to ' + d[2] + ' (' + offerId + ').');
+  return { ok: true, message: '✅ Offer ' + offerId + ' marked as extended, and ' + d[2] + ' was emailed a heads-up.' };
+}
+// Recruiter/Admin: record whether the candidate accepted or declined. Accepting is the
+// pipeline-closing moment — per Sahil's call, the rest of that requisition's active
+// candidates get a generic, non-selected notice at this point rather than sitting stale.
+function recordOfferOutcome(offerId, outcome, notes) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  if (outcome !== 'Accepted' && outcome !== 'Declined') return { error: 'Outcome must be Accepted or Declined.' };
+  var sh = offersSheet_(), row = findOfferRow_(sh, offerId); if (row < 0) return { error: 'Offer not found.' };
+  var d = sh.getRange(row, 1, 1, 15).getValues()[0]; if ((d[7] || '') !== 'Extended') return { error: 'This offer has not been extended yet.' };
+  sh.getRange(row, 8).setValue(outcome); sh.getRange(row, 13).setValue(new Date());
+  if (notes) sh.getRange(row, 11).setValue(((d[10] || '') ? d[10] + ' | ' : '') + notes);
+  var candId = d[1], candName = d[2], reqId = d[3];
+  var tr = trackerSheet_(), trow = findRowById_(tr, candId);
+  var newStage = outcome === 'Accepted' ? 'Offer Accepted' : 'Offer Declined';
+  if (trow > 0) { tr.getRange(trow, 7).setValue(newStage); recordStage_(candId, candName, newStage); }
+  logAudit_(candId, (_g.name || _g.email) + ' recorded offer outcome for ' + offerId + ': ' + outcome + '.');
+  notifyChat_((outcome === 'Accepted' ? '🎉' : '😕') + ' ' + candName + ' ' + outcome.toLowerCase() + ' the offer (' + offerId + ').');
+  var thanked = 0;
+  if (outcome === 'Accepted') { try { thanked = sendThankYouToOthers_(reqId, candId); } catch (e) {} }
+  return { ok: true, message: '✅ Recorded — ' + candName + ' ' + outcome.toLowerCase() + ' the offer.' + (thanked ? ' Sent a closing note to ' + thanked + ' other candidate(s) on this requisition.' : '') };
+}
+// Recruiter/Admin: the final milestone once a candidate has accepted.
+function recordJoiningOutcome(offerId, outcome) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  if (outcome !== 'Joined' && outcome !== 'No-show') return { error: 'Outcome must be Joined or No-show.' };
+  var sh = offersSheet_(), row = findOfferRow_(sh, offerId); if (row < 0) return { error: 'Offer not found.' };
+  var d = sh.getRange(row, 1, 1, 15).getValues()[0]; if ((d[7] || '') !== 'Accepted') return { error: 'This offer was not accepted.' };
+  sh.getRange(row, 14, 1, 2).setValues([[outcome, new Date()]]);
+  var candId = d[1], candName = d[2];
+  var tr = trackerSheet_(), trow = findRowById_(tr, candId);
+  if (trow > 0) { tr.getRange(trow, 7).setValue(outcome); recordStage_(candId, candName, outcome); }
+  logAudit_(candId, (_g.name || _g.email) + ' recorded joining outcome for ' + d[0] + ': ' + outcome + '.');
+  notifyChat_((outcome === 'Joined' ? '🎉' : '⚠️') + ' ' + candName + ' — ' + outcome + '.');
+  return { ok: true, message: '✅ Recorded — ' + candName + ': ' + outcome + '.' };
+}
+// Generic, non-selected notice to the rest of a requisition's active pipeline once someone
+// else has accepted the offer — so candidates aren't left hanging once a role is filled.
+// Skips anyone already in a terminal stage, missing an email, or Do Not Consider.
+function sendThankYouToOthers_(reqId, exceptCandId) {
+  if (!reqId) return 0;
+  var tr = trackerSheet_(), td = tr.getDataRange().getValues(), sent = 0, seen = {};
+  for (var i = 1; i < td.length; i++) {
+    var candId = (td[i][30] || '').toString(); if (!candId || candId === exceptCandId || seen[candId]) continue;
+    if ((td[i][11] || '').toString() !== reqId.toString()) continue;
+    var stage = (td[i][6] || '').toString(); if (isTerminalStage_(stage)) continue;
+    var email = (td[i][2] || '').toString(); if (!email || isDoNotConsider_(email)) continue;
+    seen[candId] = true;
+    try {
+      GmailApp.sendEmail(email, 'Update on your application', 'Hi ' + (td[i][1] || 'there') + ',\n\nThank you for the time you invested in interviewing with us. We have decided to move forward with another candidate for this role.\n\nWe genuinely appreciate your interest and encourage you to apply for future openings that fit your background.\n\nBest,\nThe Recruiting Team');
+    } catch (e) { continue; }
+    tr.getRange(i + 1, 7).setValue('Closed — Role Filled');
+    recordStage_(candId, td[i][1], 'Closed — Role Filled');
+    sent++;
+  }
+  return sent;
+}
+function getOfferForCandidate(candId) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = offersSheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < d.length; i++) if ((d[i][1] || '').toString() === candId)
+    out.push({ offerId: d[i][0], ctc: d[i][4], status: d[i][7], proposedBy: d[i][5], approvedBy: d[i][8], notes: d[i][10], joiningOutcome: d[i][13] });
+  return out;
+}
+function listPendingOfferApprovals() {
+  var _g = guard_(arguments, 'Admin'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = offersSheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < d.length; i++) if ((d[i][7] || '') === 'Pending Approval')
+    out.push({ offerId: d[i][0], candId: d[i][1], candName: d[i][2], reqId: d[i][3], ctc: d[i][4], proposedBy: d[i][5], notes: d[i][10] });
+  return out;
+}
+
+// ---------- ROLE LIBRARY (predefined titles/roles/JD/comp bands to speed up requisition
+// creation — a Recruiter can save any requisition's shape as a reusable template, then load
+// it back into "New requisition" for the next opening of that kind) ----------
+function roleLibrarySheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('RoleLibrary');
+  if (!sh) {
+    sh = ss.insertSheet('RoleLibrary');
+    sh.appendRow(['Role ID', 'Title', 'Level', 'Line of Business', 'Department', 'Employment Type',
+      'Comp Min', 'Comp Max', 'Responsibilities / JD', 'Created By', 'Created At', 'Updated At']);
+    sh.getRange(1, 1, 1, 12).setFontWeight('bold');
+  }
+  return sh;
+}
+function findRoleLibRow_(sh, roleId) {
+  var d = sh.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === (roleId || '').toString()) return i + 1;
+  return -1;
+}
+function nextRoleLibId_() {
+  return withScriptLock_(function () {
+    var pp = PropertiesService.getScriptProperties();
+    var n = parseInt(pp.getProperty('ROLELIB_SEQ') || '0', 10) + 1;
+    pp.setProperty('ROLELIB_SEQ', String(n));
+    return 'ROLE-' + ('000' + n).slice(-3);
+  });
+}
+// Read is ungated (same convention as listRequisitions) — it's just JD boilerplate, not
+// sensitive data, and any signed-in teammate opening "New requisition" should see it.
+function listRoleLibrary() {
+  var d = roleLibrarySheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < d.length; i++) {
+    if (!d[i][0]) continue;
+    out.push({ id: d[i][0], title: d[i][1], level: d[i][2], line_of_business: d[i][3], department: d[i][4],
+      employment_type: d[i][5], comp_min: d[i][6], comp_max: d[i][7], jd: d[i][8], createdBy: d[i][9] });
+  }
+  return out;
+}
+function saveRoleLibraryEntry(o) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  if (!o || !o.title) return { error: 'Title is required.' };
+  var sh = roleLibrarySheet_(), now = new Date();
+  if (o.id) {
+    var row = findRoleLibRow_(sh, o.id);
+    if (row < 0) return { error: 'Role not found: ' + o.id };
+    sh.getRange(row, 2, 1, 8).setValues([sanitizeRow_([o.title, o.level || '', o.line_of_business || '',
+      o.department || '', o.employment_type || '', o.comp_min || '', o.comp_max || '', o.jd || ''])]);
+    sh.getRange(row, 12).setValue(now);
+    return { ok: true, id: o.id, message: 'Role updated.' };
+  }
+  var id = nextRoleLibId_();
+  sh.appendRow(sanitizeRow_([id, o.title, o.level || '', o.line_of_business || '', o.department || '',
+    o.employment_type || '', o.comp_min || '', o.comp_max || '', o.jd || '', _g.name || _g.email, now, now]));
+  return { ok: true, id: id, message: 'Role added to the library.' };
+}
+function deleteRoleLibraryEntry(roleId) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var sh = roleLibrarySheet_(), row = findRoleLibRow_(sh, roleId);
+  if (row < 0) return { error: 'Role not found: ' + roleId };
+  sh.deleteRow(row);
+  return { ok: true, message: 'Removed from the library.' };
+}
+
+// ---------- INTERVIEW FEEDBACK SLA (give this an hourly trigger — Apps Script editor →
+// Triggers → Add Trigger → checkInterviewSla → Time-driven → Hour timer → every hour) ----------
+function ensureInterviewSlaCols_(sh) {
+  var headers = ['SLA Reminder Sent', 'SLA Escalated'];
+  var existing = sh.getRange(1, 18, 1, 2).getValues()[0], need = false;
+  for (var i = 0; i < 2; i++) if ((existing[i] || '').toString() !== headers[i]) { need = true; break; }
+  if (need) sh.getRange(1, 18, 1, 2).setValues([headers]).setFontWeight('bold');
+}
+// Flags interviews whose scheduled time has passed with no feedback submitted yet (Interview
+// Status still 'Scheduled' — submitRoundFeedback() is what flips it to 'Completed'): reminds
+// the interviewer(s) after 24h, escalates to the company alerts email (🏢 Company settings)
+// after 48h. Each interview is reminded/escalated at most once — never re-sends.
+function checkInterviewSla() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), ish = ss.getSheetByName('Interviews');
+  if (!ish || ish.getLastRow() < 2) return 'No interviews yet.';
+  ensureInterviewDecisionCols_(ish); ensureSchedulingModeCol_(ish); ensureInterviewSlaCols_(ish);
+  var d = ish.getDataRange().getValues(), tz = Session.getScriptTimeZone(), now = new Date(), oc = orgContext_();
+  var reminded = 0, escalated = 0;
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][9] || '').toString() !== 'Scheduled') continue; // feedback already in (Completed) — nothing to chase
+    var when = d[i][6] instanceof Date ? d[i][6] : new Date(d[i][6]);
+    if (isNaN(when.getTime())) continue;
+    var hoursSince = (now.getTime() - when.getTime()) / 3600000;
+    if (hoursSince < 24) continue;
+    var candName = d[i][2], stage = d[i][4] || 'interview', interviewers = (d[i][5] || '').toString(), reminderSent = d[i][17], escalatedAt = d[i][18];
+    if (hoursSince >= 48 && !escalatedAt) {
+      if (oc.alertEmail) {
+        try {
+          GmailApp.sendEmail(oc.alertEmail, '⏰ Overdue interview feedback — ' + candName,
+            (interviewers || 'The interviewer') + ' has not submitted feedback for ' + candName + '\'s ' + stage + ' interview, scheduled ' +
+            Utilities.formatDate(when, tz, 'dd MMM yyyy HH:mm') + ' (over 48h ago).\n\nPlease follow up.');
+        } catch (e) {}
+      }
+      ish.getRange(i + 1, 19).setValue(now);
+      notifyChat_('🚨 Escalated: overdue feedback for ' + candName + ' (' + stage + ') — no response in 48h+.');
+      escalated++;
+    } else if (hoursSince >= 24 && !reminderSent) {
+      var ivEmails = interviewers.split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > -1; });
+      ivEmails.forEach(function (email) {
+        try {
+          GmailApp.sendEmail(email, 'Reminder: feedback needed — ' + candName,
+            'Hi,\n\nJust a reminder to submit your feedback for ' + candName + '\'s ' + stage + ' interview (' +
+            Utilities.formatDate(when, tz, 'dd MMM yyyy HH:mm') + ').\n\nOpen Healthy18 ATS and use the "feedback" link on their candidate profile.\n\nThanks!');
+        } catch (e) {}
+      });
+      ish.getRange(i + 1, 18).setValue(now);
+      reminded++;
+    }
+  }
+  return 'SLA check complete — ' + reminded + ' reminder(s), ' + escalated + ' escalation(s).';
 }
 function checkRsvp(eventId) {
   var _g = guard_(arguments, 'Interviewer'); if (_g.error) return _g.error; // C-1: server-side auth
@@ -2989,10 +3752,53 @@ function checkAvailability(interviewers, datetime) {
   ids.forEach(function (e) { var busy = (cals[e] && cals[e].busy) || []; out.push({ email: e, free: busy.length === 0 }); });
   return { results: out };
 }
-function freeSlots(interviewers, durationMin, fromDate, toDate) {
+function availabilitySheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Availability');
+  if (!sh) { sh = ss.insertSheet('Availability'); sh.appendRow(['Email', 'Day', 'Start', 'End', 'Active']); sh.getRange(1, 1, 1, 5).setFontWeight('bold'); }
+  return sh;
+}
+// Interviewer-declared recurring weekly availability (e.g. "Tue & Thu 2-5pm"). This is
+// ADDITIVE to their live Google Calendar: freeSlots() still checks the calendar for actual
+// busy time, but when an interviewer has declared rules here, slots are only offered inside
+// those windows. Interviewers who never set this up keep today's behavior (any work-hour
+// slot their calendar shows as free).
+function saveMyAvailability(rules) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return _g.error; // C-1: server-side auth
+  var email = (_g.email || '').toLowerCase(); if (!email) return { error: 'Could not identify you.' };
+  var days = { Mon: 1, Tue: 1, Wed: 1, Thu: 1, Fri: 1, Sat: 1, Sun: 1 };
+  var clean = (rules || []).filter(function (r) { return r && days[r.day] && /^\d{1,2}:\d{2}$/.test(r.start || '') && /^\d{1,2}:\d{2}$/.test(r.end || '') && r.start < r.end; });
+  var sh = availabilitySheet_(), d = sh.getDataRange().getValues();
+  withScriptLock_(function () {
+    for (var i = d.length - 1; i >= 1; i--) if ((d[i][0] || '').toString().toLowerCase() === email) sh.deleteRow(i + 1);
+    clean.forEach(function (r) { sh.appendRow(sanitizeRow_([email, r.day, r.start, r.end, true])); }); // C-2
+  });
+  return { ok: true, message: clean.length ? ('✅ Saved ' + clean.length + ' weekly availability window(s).') : '✅ Cleared — your calendar\'s free/busy will be used for all work hours again.' };
+}
+function getMyAvailability() {
   var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
-  var ids = (interviewers || '').split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > -1; });
-  if (!ids.length) return { error: 'Add interviewer email(s) first.' };
+  var email = (_g.email || '').toLowerCase();
+  var d = availabilitySheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString().toLowerCase() === email && d[i][4] !== false) out.push({ day: d[i][1], start: d[i][2], end: d[i][3] });
+  return out;
+}
+// Internal: {email -> [{day:'Mon', startMin:840, endMin:1020}, ...]}. Emails with no rows are
+// simply absent from the map, meaning "no declared constraint" (full work hours).
+function loadAvailabilityMap_(emails) {
+  var lower = emails.map(function (e) { return e.toLowerCase(); });
+  var d = availabilitySheet_().getDataRange().getValues(), map = {};
+  function toMin(hhmm) { var p = (hhmm || '').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0); }
+  for (var i = 1; i < d.length; i++) {
+    var em = (d[i][0] || '').toString().toLowerCase();
+    if (lower.indexOf(em) < 0 || d[i][4] === false) continue;
+    if (!map[em]) map[em] = [];
+    map[em].push({ day: (d[i][1] || '').toString(), startMin: toMin(d[i][2]), endMin: toMin(d[i][3]) });
+  }
+  return map;
+}
+var DOW_NAMES_ = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Shared slot-finder used by both the recruiter-facing freeSlots() and the token-based
+// self-serve booking page — same calendar-busy + declared-availability logic either way.
+function computeFreeSlots_(ids, durationMin, fromDate, toDate) {
   var oc = orgContext_(), dur = durationMin || oc.slotMin || 60, tz = Session.getScriptTimeZone(), now = new Date();
   var start = fromDate ? new Date(fromDate + 'T00:00:00') : new Date(now.getTime() + 60 * 60000);
   if (isNaN(start.getTime()) || start.getTime() < now.getTime()) start = new Date(now.getTime() + 60 * 60000);
@@ -3009,10 +3815,19 @@ function freeSlots(interviewers, durationMin, fromDate, toDate) {
     note = 'Couldn\'t read calendars (interviewers may be outside your Workspace) — showing all work-hour slots; confirm availability manually.';
   }
   function isFree(s, e) { for (var i = 0; i < busy.length; i++) if (s < busy[i][1] && e > busy[i][0]) return false; return true; }
-  // H-6 FIX: work hours come from the Company settings (ORG_WS / ORG_WE) instead of a
-  // hardcoded 9–18. (Slot length already falls back to ORG_SLOT via `dur` above now that the
-  // client passes null instead of a hardcoded 60.) Sanity-clamped so a bad setting can't
-  // produce an empty or inverted day.
+  var availMap = loadAvailabilityMap_(ids);
+  function withinDeclaredAvailability(dowName, sMin, eMin) {
+    var anyDeclared = false;
+    for (var i = 0; i < ids.length; i++) {
+      var rules = availMap[ids[i].toLowerCase()];
+      if (!rules || !rules.length) continue; // this interviewer declared nothing — no constraint from them
+      anyDeclared = true;
+      var ok = false;
+      for (var j = 0; j < rules.length; j++) if (rules[j].day === dowName && sMin >= rules[j].startMin && eMin <= rules[j].endMin) { ok = true; break; }
+      if (!ok) return false; // this interviewer HAS declared hours and this slot isn't in them
+    }
+    return true; // either nobody declared anything, or everyone who did covers this slot
+  }
   var WORK_START = Math.max(0, Math.min(23, oc.workStart || 9));
   var WORK_END = Math.max(1, Math.min(24, oc.workEnd || 18));
   if (WORK_END <= WORK_START) { WORK_START = 9; WORK_END = 18; }
@@ -3020,18 +3835,26 @@ function freeSlots(interviewers, durationMin, fromDate, toDate) {
   for (var d = 0; d < days && slots.length < 30; d++) {
     var day = new Date(start.getTime() + d * 86400000), dow = day.getDay();
     if (dow === 0 || dow === 6) continue; // skip weekends
+    var dowName = DOW_NAMES_[dow];
     for (var h = WORK_START; h < WORK_END && slots.length < 30; h++) {
       for (var m = 0; m < 60; m += 30) {
         var s = new Date(day); s.setHours(h, m, 0, 0);
         if (s.getTime() < start.getTime() || s.getTime() > end.getTime()) continue;
         var e2 = new Date(s.getTime() + dur * 60000);
         if (e2.getHours() > WORK_END || (e2.getHours() === WORK_END && e2.getMinutes() > 0)) continue;
+        if (!withinDeclaredAvailability(dowName, h * 60 + m, h * 60 + m + dur)) continue;
         if (isFree(s.getTime(), e2.getTime())) slots.push({ iso: Utilities.formatDate(s, tz, "yyyy-MM-dd'T'HH:mm"), day: Utilities.formatDate(s, tz, 'EEE d MMM'), time: Utilities.formatDate(s, tz, 'h:mm a') });
         if (slots.length >= 30) break;
       }
     }
   }
   return { slots: slots, note: note, interviewers: ids.length, workStart: WORK_START, workEnd: WORK_END, slotMin: dur }; // H-6: tell the UI which settings were used
+}
+function freeSlots(interviewers, durationMin, fromDate, toDate) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var ids = (interviewers || '').split(/[,;\s]+/).filter(function (x) { return x.indexOf('@') > -1; });
+  if (!ids.length) return { error: 'Add interviewer email(s) first.' };
+  return computeFreeSlots_(ids, durationMin, fromDate, toDate);
 }
 function rescheduleInterview(interviewId, newDatetime) {
   var u = currentUser_(arguments); if (u.role !== 'Admin' && u.role !== 'Recruiter') return '🔒 Only recruiters/admins can reschedule.';
@@ -3066,21 +3889,208 @@ function dailyDigest() {
     if (sl === 'new' || sl === 'shortlist') needAction.push(t[i][1] + ' (' + stage + ')');
   }
   var summary = Object.keys(stages).map(function (k) { return k + ': ' + stages[k]; }).join(', ') || 'none';
-  var html = '<h2>AgentATS — Daily Digest</h2>' +
+  var html = '<h2>Healthy18 ATS — Daily Digest</h2>' +
     '<p><b>🆕 New in last 24h:</b> ' + (newC.length ? newC.join(', ') : 'none') + '</p>' +
     '<p><b>📊 Pipeline:</b> ' + summary + '</p>' +
     '<p><b>⏳ Waiting on you (New / Shortlist):</b> ' + (needAction.length ? needAction.slice(0, 25).join(', ') : 'none') + '</p>' +
-    '<p style="color:#888;font-size:12px">Sent automatically by AgentATS.</p>';
+    '<p style="color:#888;font-size:12px">Sent automatically by Healthy18 ATS.</p>';
   var users = ss.getSheetByName('Users').getDataRange().getValues();
   for (var u = 1; u < users.length; u++) {
     var role = (users[u][2] || '').toString(), active = (users[u][3] || '').toString().toLowerCase();
     if ((role === 'Admin' || role === 'Recruiter') && active !== 'no' && users[u][0])
-      MailApp.sendEmail({ to: users[u][0], subject: 'Your AgentATS daily digest', htmlBody: html });
+      MailApp.sendEmail({ to: users[u][0], subject: 'Your Healthy18 ATS daily digest', htmlBody: html });
   }
   return 'Digest sent.';
 }
 
 // ---------- PUBLIC CAREERS FORM ----------
+// ---------- CONSULTING / AGENCY CV INTAKE ----------
+// Firms get a personal, un-spoofable submission link — the source is locked server-side
+// from their token, exactly like teammate ?u= links, so attribution can't be corrupted.
+function agencySheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('Consulting Firms');
+  if (!sh) { sh = ss.insertSheet('Consulting Firms'); sh.getRange(1, 1, 1, 5).setValues([['Firm Name', 'Contact Email', 'Token', 'Active', 'Candidates Submitted']]).setFontWeight('bold'); }
+  return sh;
+}
+function createConsultingFirm(name, email) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
+  if (!name) return { error: 'Firm name is required.' };
+  var sh = agencySheet_(), tok = Utilities.getUuid().replace(/-/g, '').slice(0, 14);
+  sh.appendRow(sanitizeRow_([name, email || '', tok, 'Yes', 0])); // C-2
+  logAudit_('AGENCY:' + name, (_g.name || _g.email) + ' added consulting firm ' + name + '.');
+  return { ok: true, name: name, token: tok, url: getAppUrl() + '?page=agency&t=' + tok };
+}
+function listConsultingFirms() {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = agencySheet_().getDataRange().getValues(), out = [], base = getAppUrl();
+  for (var i = 1; i < d.length; i++) if (d[i][0])
+    out.push({ name: d[i][0], email: d[i][1] || '', active: (d[i][3] || '').toString().toLowerCase() !== 'no', submitted: d[i][4] || 0, url: base + '?page=agency&t=' + d[i][2] });
+  return out;
+}
+function setConsultingFirmActive(name, active) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var sh = agencySheet_(), d = sh.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === (name || '').toString()) { sh.getRange(i + 1, 4).setValue(active ? 'Yes' : 'No'); return { ok: true }; }
+  return { error: 'Firm not found.' };
+}
+function firmFromToken_(token) {
+  if (!token) return null;
+  var d = agencySheet_().getDataRange().getValues();
+  for (var i = 1; i < d.length; i++)
+    if ((d[i][2] || '').toString() === token.toString()) {
+      if ((d[i][3] || '').toString().toLowerCase() === 'no') return null;
+      return { row: i + 1, name: d[i][0], email: d[i][1] || '' };
+    }
+  return null;
+}
+// Public (token-gated, no login) — powers Agency.html.
+function agencyInfo(token) {
+  var firm = firmFromToken_(token);
+  if (!firm) return { error: 'This link is no longer active. Ask your Healthy18 contact for a new one.' };
+  return { firmName: firm.name, reqs: listOpenReqs() };
+}
+// Public (token-gated) — same shape/limits as submitApplication, but source is locked to the
+// firm's name from the token (never trusts anything the page sends) and never public.
+function submitAgencyCandidate(token, o) {
+  var firm = firmFromToken_(token);
+  if (!firm) return 'ERR:This link is no longer active. Ask your Healthy18 contact for a new one.';
+  if (!o.name || !o.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(o.email)) return 'ERR:Enter a valid name and email.';
+  if (!o.resumeB64) return 'ERR:Resume required.';
+  if (o.resumeB64.length * 0.75 > MAX_RESUME_MB * 1024 * 1024) return 'ERR:Resume too large (max ' + MAX_RESUME_MB + 'MB).';
+  if (!/pdf|msword|officedocument|wordprocessing/.test((o.resumeType || '').toLowerCase())) return 'ERR:Please upload a PDF or Word file.';
+  if (isDoNotConsider_(o.email)) return 'ERR:This candidate cannot be submitted at this time.'; // M-12: global Do Not Consider, never explained to the submitter
+  var source = 'Agency: ' + firm.name;
+  var sheet = trackerSheet_(), d = sheet.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][2] || '').toString().toLowerCase() !== o.email.toLowerCase()) continue;
+    return 'ERR:This candidate is already in our pipeline.'; // don't let an agency silently overwrite an existing record
+  }
+  var url = cvFolderForReq_(o.reqId).createFile(Utilities.newBlob(Utilities.base64Decode(o.resumeB64), o.resumeType || 'application/pdf', o.resumeName || 'resume')).getUrl();
+  var r = withScriptLock_(function () { // H-1: atomic append + ID mint
+    sheet.appendRow(sanitizeRow_([new Date(), o.name, o.email, '', source, url, 'New', '', '', '', ''])); // C-2
+    var rr = sheet.getLastRow(); sheet.getRange(rr, 31).setValue(nextCandidateId_()); stampApplicationId_(sheet, rr); return rr;
+  });
+  if (o.reqId) sheet.getRange(r, 12).setValue(sanitizeCell_(o.reqId));
+  if (o.phone) sheet.getRange(r, 13).setValue(sanitizeCell_(o.phone));
+  try { agencySheet_().getRange(firm.row, 5).setValue((agencySheet_().getRange(firm.row, 5).getValue() || 0) + 1); } catch (e) {}
+  bustCache_();
+  notifyChat_('📥 New candidate from ' + source + ': ' + o.name + (o.reqId ? ' for ' + o.reqId : ''));
+  return 'OK';
+}
+
+// ---------- BULK IMPORT FROM A GOOGLE SHEET (LinkedIn exports, consulting-firm trackers) ----------
+// colMap keys -> the exact header text in the source sheet, e.g.
+// {name:'Full Name', email:'Email', phone:'Phone', company:'Current Company', title:'Current Title',
+//  experience:'Total Exp', notice:'Notice Period', currentCtc:'Current CTC', expectedCtc:'Expected CTC',
+//  linkedin:'LinkedIn URL', resumeLink:'Resume Link'}. Only `name` and `email` are required.
+function sheetIdFromUrl_(s) {
+  s = (s || '').toString();
+  var m = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/.exec(s);
+  return m ? m[1] : s.trim(); // also accepts a bare sheet ID
+}
+function importCandidatesFromSheet(sheetUrl, reqId, sourceLabel, colMap, gid) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
+  if (!colMap || !colMap.name || (!colMap.email && !colMap.phone)) return { error: 'colMap must map "name", and at least one of "email" or "phone", to header names in the source sheet.' };
+  var id = sheetIdFromUrl_(sheetUrl), src;
+  try { src = SpreadsheetApp.openById(id); } catch (e) { return { error: 'Could not open that sheet — make sure it is shared with the account running this ATS.' }; }
+  var sh = gid ? (src.getSheets().filter(function (s) { return s.getSheetId().toString() === gid.toString(); })[0] || src.getSheets()[0]) : src.getSheets()[0];
+  var rows = sh.getDataRange().getValues();
+  if (!rows.length) return { error: 'That sheet/tab is empty.' };
+  var headers = rows[0].map(function (h) { return (h || '').toString().trim(); });
+  var idx = {}; Object.keys(colMap).forEach(function (k) { idx[k] = headers.indexOf(colMap[k]); });
+  if (idx.name < 0) return { error: 'Could not find the mapped "name" column in the sheet\'s header row: ' + headers.join(', ') };
+  if ((colMap.email && idx.email < 0) || (colMap.phone && idx.phone < 0)) return { error: 'Could not find one of the mapped columns in the sheet\'s header row: ' + headers.join(', ') };
+  // M-11: real-world firm/LinkedIn trackers often have NO email column at all (phone is the
+  // only contact given) — email is preferred for dedupe but phone alone is now enough to import.
+  var tracker = trackerSheet_(), existing = tracker.getDataRange().getValues(), byEmail = {}, byPhone = {};
+  for (var e2 = 1; e2 < existing.length; e2++) {
+    var em = (existing[e2][2] || '').toString().toLowerCase(); if (em) byEmail[em] = true;
+    var ph = (existing[e2][12] || '').toString().replace(/\D/g, ''); if (ph) byPhone[ph] = true;
+  }
+  var label = sourceLabel || 'Import', imported = 0, skipped = 0, errors = [];
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r], name = (row[idx.name] || '').toString().trim();
+    var email = idx.email > -1 ? (row[idx.email] || '').toString().trim().toLowerCase() : '';
+    var phoneRaw = idx.phone > -1 ? (row[idx.phone] || '').toString().trim() : '';
+    var phoneKey = phoneRaw.replace(/\D/g, '');
+    if (!name && !email && !phoneKey) continue;
+    var emailOk = !email || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+    if (!name || !emailOk || (!email && !phoneKey)) { skipped++; continue; } // need a name + at least one valid contact
+    if ((email && byEmail[email]) || (phoneKey && byPhone[phoneKey])) { skipped++; continue; } // already in the pipeline — never overwrite silently
+    try {
+      var get = function (k) { return idx[k] > -1 ? (row[idx[k]] || '').toString() : ''; };
+      var rr = withScriptLock_(function () { // H-1: atomic append + ID mint
+        tracker.appendRow(sanitizeRow_([new Date(), name, email, '', label, get('resumeLink'), 'New', '', ''])); // C-2
+        var lr = tracker.getLastRow(); tracker.getRange(lr, 31).setValue(nextCandidateId_()); stampApplicationId_(tracker, lr); return lr;
+      });
+      if (reqId) tracker.getRange(rr, 12).setValue(sanitizeCell_(reqId));
+      if (phoneRaw) tracker.getRange(rr, 13).setValue(sanitizeCell_(phoneRaw));
+      if (get('company')) tracker.getRange(rr, 19).setValue(sanitizeCell_(get('company')));
+      if (get('title')) tracker.getRange(rr, 20).setValue(sanitizeCell_(get('title')));
+      if (get('experience')) tracker.getRange(rr, 21).setValue(sanitizeCell_(get('experience')));
+      if (get('notice')) tracker.getRange(rr, 24).setValue(sanitizeCell_(get('notice')));
+      if (get('currentCtc')) tracker.getRange(rr, 25).setValue(sanitizeCell_(get('currentCtc')));
+      if (get('expectedCtc')) tracker.getRange(rr, 26).setValue(sanitizeCell_(get('expectedCtc')));
+      if (get('location')) tracker.getRange(rr, 14).setValue(sanitizeCell_(get('location')));
+      if (get('linkedin')) tracker.getRange(rr, 35).setValue(sanitizeCell_(get('linkedin')));
+      if (email) byEmail[email] = true; if (phoneKey) byPhone[phoneKey] = true;
+      imported++;
+    } catch (ex) { errors.push(name + ': ' + ex.message); }
+  }
+  if (imported) { logAudit_((reqId || 'IMPORT').toString(), (_g.name || _g.email) + ' imported ' + imported + ' candidate(s) from ' + label + (reqId ? ' into ' + reqId : '') + ' (' + skipped + ' skipped as duplicate/invalid).'); bustCache_(); }
+  return { ok: true, imported: imported, skipped: skipped, errors: errors };
+}
+
+// ---------- SOCIAL MEDIA JOB POSTING (Google Form) ----------
+function createJobPostingForm(reqId) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
+  var info = getReqSummary(reqId); if (!info) return { error: 'Requisition not found.' };
+  var form = FormApp.create('Apply — ' + (info.title || reqId) + ' (' + reqId + ')');
+  form.setDescription((info.notes || 'Apply to this role.').toString().slice(0, 1500) + '\n\nShare this link on LinkedIn / social media.');
+  form.addTextItem().setTitle('Full name').setRequired(true);
+  form.addTextItem().setTitle('Email').setRequired(true);
+  form.addTextItem().setTitle('Phone').setRequired(false);
+  form.addTextItem().setTitle('LinkedIn profile URL').setRequired(false);
+  form.addTextItem().setTitle('Resume link (Google Drive/Dropbox share link)').setRequired(true);
+  form.addTextItem().setTitle('Current company & title').setRequired(false);
+  form.addTextItem().setTitle('Notice period').setRequired(false);
+  form.setDestination(FormApp.DestinationType.SPREADSHEET, SpreadsheetApp.openById(SHEET_ID).getId());
+  PropertiesService.getScriptProperties().setProperty('JOBFORM_' + form.getId(), reqId);
+  ScriptApp.newTrigger('onJobFormSubmit').forForm(form).onFormSubmit().create();
+  logAudit_(reqId, (_g.name || _g.email) + ' created a social job-posting form: ' + form.getPublishedUrl());
+  return { ok: true, url: form.getPublishedUrl(), editUrl: form.getEditUrl() };
+}
+// Installed trigger target — ingests each Google Form response into the Tracker.
+function onJobFormSubmit(e) {
+  try {
+    var formId = e.source.getId(), reqId = PropertiesService.getScriptProperties().getProperty('JOBFORM_' + formId) || '';
+    var v = e.namedValues || {}, g = function (k) { return (v[k] && v[k][0]) || ''; };
+    var name = g('Full name').toString().trim(), email = g('Email').toString().trim();
+    if (!name || !email) return;
+    var sheet = trackerSheet_(), d = sheet.getDataRange().getValues();
+    for (var i = 1; i < d.length; i++) if ((d[i][2] || '').toString().toLowerCase() === email.toLowerCase()) return; // dedupe, skip silently
+    var r = withScriptLock_(function () { // H-1: atomic append + ID mint
+      sheet.appendRow(sanitizeRow_([new Date(), name, email, '', 'Social Form', g('Resume link (Google Drive/Dropbox share link)'), 'New', '',
+        ('Notice: ' + g('Notice period') + ' · Current: ' + g('Current company & title')).slice(0, 300)])); // C-2
+      var rr = sheet.getLastRow(); sheet.getRange(rr, 31).setValue(nextCandidateId_()); return rr;
+    });
+    if (reqId) sheet.getRange(r, 12).setValue(sanitizeCell_(reqId));
+    if (g('Phone')) sheet.getRange(r, 13).setValue(sanitizeCell_(g('Phone')));
+    if (g('LinkedIn profile URL')) sheet.getRange(r, 35).setValue(sanitizeCell_(g('LinkedIn profile URL')));
+    bustCache_();
+    notifyChat_('📥 New applicant via social form: ' + name + (reqId ? ' for ' + reqId : ''));
+  } catch (err) {} // never let a malformed form response break the trigger
+}
+// Ready-to-paste caption for LinkedIn/social, linking to the standard careers page pre-filtered to this role.
+function generateJobPostText(reqId) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var info = getReqSummary(reqId); if (!info) return { error: 'Requisition not found.' };
+  var link = getAppUrl() + '?page=apply&req=' + encodeURIComponent(reqId);
+  var text = "We're hiring: " + (info.title || reqId) + (info.location ? ' (' + info.location + ')' : '') + '!\n\n' +
+    (info.notes ? info.notes.toString().slice(0, 400) + '\n\n' : '') + 'Apply here: ' + link;
+  return { ok: true, text: text, link: link };
+}
+
 function listOpenReqs() {
   var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions');
   if (!sh) return [];
@@ -3111,31 +4121,41 @@ function submitApplication(o) {
   if (count >= APPLY_DAILY_CAP) return 'ERR:High volume today — please try again tomorrow.';
   var cache = CacheService.getScriptCache(), ek = 'apl_' + o.email.toLowerCase();
   if (cache.get(ek)) return 'ERR:We already have your application — thank you!';
+  if (isDoNotConsider_(o.email)) { cache.put(ek, '1', 21600); return 'OK'; } // M-12: silently accept-looking but never enters the pipeline
   var sheet = trackerSheet_(), d = sheet.getDataRange().getValues();
-  // H-8 FIX: a repeat application (same email) is no longer silently swallowed. We save the
-  // NEW resume, update the existing row's resume link + Req ID, and note the re-application,
-  // so a past applicant re-applying to a new opening is actually seen by the recruiter.
+  ensureApplicationIdCol_(sheet);
+  // M-12 FIX (was H-8): a repeat application for the SAME role still updates that one
+  // application in place (avoids duplicate-click spam). A repeat application for a
+  // DIFFERENT role now creates a NEW application row instead of overwriting the old one —
+  // the candidate keeps ONE identity (Candidate ID reused) but each role gets its own
+  // Application ID and its own history, so an old rejection/result is never lost.
+  var existingCandId = '', existingReqId = '';
   for (var i = 1; i < d.length; i++) {
     if ((d[i][2] || '').toString().toLowerCase() !== o.email.toLowerCase()) continue;
-    try {
-      var rurl = cvFolderForReq_(o.reqId).createFile(Utilities.newBlob(Utilities.base64Decode(o.resumeB64), o.resumeType || 'application/pdf', o.resumeName || 'resume')).getUrl(); // L-8: per-req subfolder
-      var rrow = i + 1, candId = (d[i][30] || '').toString();
-      sheet.getRange(rrow, 6).setValue(rurl); // latest resume
-      if (o.reqId) sheet.getRange(rrow, 12).setValue(sanitizeCell_(o.reqId)); // latest role applied for
-      var noteCell = sheet.getRange(rrow, 9), oldNote = (noteCell.getValue() || '').toString();
-      noteCell.setValue(sanitizeCell_((oldNote ? oldNote + ' | ' : '') + 'Re-applied ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd MMM yyyy') + (o.reqId ? ' for ' + o.reqId : '') + ' (new resume attached)'));
-      if (candId) { try { logAudit_(candId, 'Re-applied via careers page' + (o.reqId ? ' for ' + o.reqId : '') + ' — resume updated'); } catch (e) {} }
-      bustCache_();
-      notifyChat_('🔁 Repeat applicant: ' + (d[i][1] || o.name) + (o.reqId ? ' for ' + o.reqId : '') + ' (via careers page — record updated)');
-    } catch (e) {} // never fail the applicant-facing page on a bookkeeping error
-    cache.put(ek, '1', 21600);
-    return 'OK';
+    existingCandId = (d[i][30] || '').toString(); existingReqId = (d[i][11] || '').toString();
+    var sameRole = (existingReqId || '') === (o.reqId || '');
+    if (sameRole) {
+      try {
+        var rurl = cvFolderForReq_(o.reqId).createFile(Utilities.newBlob(Utilities.base64Decode(o.resumeB64), o.resumeType || 'application/pdf', o.resumeName || 'resume')).getUrl(); // L-8: per-req subfolder
+        var rrow = i + 1;
+        sheet.getRange(rrow, 6).setValue(rurl); // latest resume
+        var noteCell = sheet.getRange(rrow, 9), oldNote = (noteCell.getValue() || '').toString();
+        noteCell.setValue(sanitizeCell_((oldNote ? oldNote + ' | ' : '') + 'Re-applied ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd MMM yyyy') + (o.reqId ? ' for ' + o.reqId : '') + ' (new resume attached)'));
+        if (existingCandId) { try { logAudit_(existingCandId, 'Re-applied via careers page for the same role — resume updated'); } catch (e) {} }
+        bustCache_();
+        notifyChat_('🔁 Repeat applicant: ' + (d[i][1] || o.name) + (o.reqId ? ' for ' + o.reqId : '') + ' (via careers page — record updated)');
+      } catch (e) {} // never fail the applicant-facing page on a bookkeeping error
+      cache.put(ek, '1', 21600);
+      return 'OK';
+    }
+    break; // different role — fall through and mint a new Application row, reusing existingCandId
   }
   var url = cvFolderForReq_(o.reqId).createFile(Utilities.newBlob(Utilities.base64Decode(o.resumeB64), o.resumeType || 'application/pdf', o.resumeName || 'resume')).getUrl(); // L-8: per-req subfolder
   var r = withScriptLock_(function () { // H-1: atomic append + ID mint (public endpoint races the hourly trigger)
     sheet.appendRow(sanitizeRow_([new Date(), o.name, o.email, '', 'Careers Page', url, 'New', '', '', '', ''])); // C-2: public form
     var rr = sheet.getLastRow();
-    sheet.getRange(rr, 31).setValue(nextCandidateId_());
+    sheet.getRange(rr, 31).setValue(existingCandId || nextCandidateId_()); // reuse identity across applications
+    stampApplicationId_(sheet, rr);
     // L-4 FIX: the daily-cap counter is incremented inside the lock so concurrent submissions
     // can't lose increments. (The read at the top stays lock-free — it's a soft cap by design.)
     props.setProperty(dayKey, String(parseInt(props.getProperty(dayKey) || '0', 10) + 1));
@@ -3144,6 +4164,7 @@ function submitApplication(o) {
   if (o.phone) sheet.getRange(r, 13).setValue(sanitizeCell_(o.phone));
   if (o.location) sheet.getRange(r, 14).setValue(sanitizeCell_(o.location));
   if (o.reqId) sheet.getRange(r, 12).setValue(sanitizeCell_(o.reqId));
+  if (existingCandId) { try { logAudit_(existingCandId, 'New application via careers page for ' + (o.reqId || 'a role') + ' (previous role: ' + (existingReqId || 'none') + ').'); } catch (e) {} }
   cache.put(ek, '1', 21600);
   // L-4 FIX: APPLY_yyyymmdd keys used to accumulate forever. On the first application of each
   // day, delete every stale APPLY_* key from previous days.
@@ -3166,13 +4187,13 @@ function notifyChat_(text) {
   text = safeNotifyText_(text, 300); // L-9
   var p = PropertiesService.getScriptProperties();
   try { var url = p.getProperty('CHAT_WEBHOOK'); if (url) UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json', payload: JSON.stringify({ text: text }), muteHttpExceptions: true }); } catch (e) {}
-  try { var em = p.getProperty('ORG_ALERT_EMAIL'); if (em) GmailApp.sendEmail(em, '🔔 AgentATS: ' + text.slice(0, 70), text); } catch (e) {}
+  try { var em = p.getProperty('ORG_ALERT_EMAIL'); if (em) GmailApp.sendEmail(em, '🔔 Healthy18 ATS: ' + text.slice(0, 70), text); } catch (e) {}
 }
 function testChatNotify() {
   var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
   var p = PropertiesService.getScriptProperties(), url = p.getProperty('CHAT_WEBHOOK'), em = p.getProperty('ORG_ALERT_EMAIL');
   if (!url && !em) return '⚠️ Add a Google Chat webhook OR an alerts email in 🏢 Company first.';
-  notifyChat_('✅ AgentATS test notification — alerts are connected.');
+  notifyChat_('✅ Healthy18 ATS test notification — alerts are connected.');
   return '✅ Test sent' + (url ? ' to Google Chat' : '') + (em ? ((url ? ' and to ' : ' to ') + em) : '') + '.';
 }
 function sendAck_(email, name) {

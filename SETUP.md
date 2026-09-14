@@ -1,4 +1,4 @@
-# AgentATS — Setup Guide
+# Healthy18 ATS — Setup Guide
 
 Two ways to install. Path A is for anyone comfortable copy-pasting text. Path B is the zero-effort route once a template is published.
 
@@ -10,7 +10,7 @@ Two ways to install. Path A is for anyone comfortable copy-pasting text. Path B 
 
 1. Sign in to the Google account that should *own* the ATS (all data will live in this account).
 2. Go to **[script.google.com](https://script.google.com)** and click **New project**.
-3. Name it (top-left) — e.g. `AgentATS`.
+3. Name it (top-left) — e.g. `Healthy18 ATS`.
 
 ### 2. Paste the files
 
@@ -24,6 +24,8 @@ For each file below: in the editor's left sidebar click **+** next to *Files*, p
 | `Index.html` | HTML | `Index` |
 | `Apply.html` | HTML | `Apply` |
 | `Source.html` | HTML | `Source` |
+| `Agency.html` | HTML | `Agency` |
+| `SelfSchedule.html` | HTML | `SelfSchedule` |
 
 (`Code.gs` already exists in a new project — just replace its contents. `CvForwarder.gs` is **not** pasted here; it goes into a *separate* project later — see below.)
 
@@ -45,7 +47,7 @@ Gemini-only setup remains the default. For optional Claude support, ordered mode
 3. When it finishes, open **Executions** (left sidebar) or the log: it prints the URL of your brand-new tracker spreadsheet.
 
 What `firstRun()` did for you — no manual IDs anywhere:
-- Created a spreadsheet **"AgentATS Tracker"** and a Drive folder **"AgentATS CVs"** in your account.
+- Created a spreadsheet **"Healthy18 ATS Tracker"** and a Drive folder **"Healthy18 ATS CVs"** in your account.
 - Stored their ids in Script Properties (`SHEET_ID`, `FOLDER_ID`) — the app reads them from there forever after.
 - Built every tab (Tracker, Requisitions, Users, headers, candidate IDs).
 - Added **you** as the Admin user with a personal access token.
@@ -72,7 +74,7 @@ Put that link on your website, LinkedIn, or job posts. Applications (with CV upl
 
 If you have a `careers@yourcompany.com` (or any) mailbox that receives CVs:
 
-1. In the **main** AgentATS project, add a Script Property `WEBHOOK_SECRET` with a long random value (20+ characters — mash the keyboard).
+1. In the **main** Healthy18 ATS project, add a Script Property `WEBHOOK_SECRET` with a long random value (20+ characters — mash the keyboard).
 2. Sign in **as the careers@ account**, go to script.google.com → **New project**, and paste all of `CvForwarder.gs`.
 3. At the top of that file, fill in the two clearly marked values:
    - `APP_EXEC_URL` → your web app URL from step 5 (the one ending in `/exec`).
@@ -84,6 +86,7 @@ If you have a `careers@yourcompany.com` (or any) mailbox that receives CVs:
 - **Interview feedback form**: run `createFeedbackForm` once from the editor.
 - **Notifications**: in-app **🏢 Company** settings — add an alerts email and/or a Google Chat webhook URL.
 - **Analytics dashboard**: in **📈 Analytics**, click *Build / refresh dashboard data*, then connect Looker Studio to the generated tab.
+- **Interview feedback SLA reminders**: in the Apps Script editor, **Triggers → Add Trigger** → function `checkInterviewSla` → Time-driven → Hour timer → every hour. Reminds the interviewer(s) after 24h of no feedback, escalates to the alerts email above after 48h (each interview at most once).
 
 ---
 
@@ -97,6 +100,20 @@ The friendliest distribution is a **template spreadsheet with the script attache
 3. Set the Sheet's sharing to *Anyone with the link — Viewer* and publish the copy link:
    `https://docs.google.com/spreadsheets/d/TEMPLATE_ID/copy`
 4. Every "Make a copy" gives the user their own private copy of both the Sheet and the code.
+
+### 9. Automate deploys with GitHub Actions (optional, for teams tracking this repo in git)
+
+By default, shipping a code change means pasting it into the Apps Script editor and clicking **Deploy → Manage deployments → New version** (see Troubleshooting below). If you keep this repo in GitHub, `.github/workflows/deploy.yml` can do that push for you on every merge to `main`.
+
+1. Install clasp once, locally: `npm install -g @google/clasp`.
+2. `clasp login` (opens a Google sign-in for the account that owns the Apps Script project). This creates `~/.clasprc.json`.
+3. In your GitHub repo, add these under **Settings → Secrets and variables → Actions**:
+   - `CLASPRC_JSON` — the full contents of `~/.clasprc.json` from step 2.
+   - `CLASP_SCRIPT_ID` — from script.google.com: **Project Settings → IDs → Script ID**.
+   - `CLASP_DEPLOYMENT_ID` *(optional)* — from **Deploy → Manage deployments**, if you also want the live `/exec` URL to update automatically. Without this secret, the workflow only pushes source; you still click **New version** once to ship it, same as today.
+4. Push to `main` — the workflow pushes `Code.gs`, `AiGateway.gs`, `TalentRubric.gs`, `CvForwarder.gs`, the `.html` files, and `appsscript.json` straight into the Apps Script project.
+
+Never commit `.clasprc.json` or `.clasp.json` — both are already covered by `.gitignore`/`.claspignore`, and the values above belong only in GitHub Secrets.
 
 ---
 
