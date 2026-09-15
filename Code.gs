@@ -127,10 +127,20 @@ function doGet(e) {
   // (Index) or the internal sourcing tool (Source). guard_() blocks the actions those pages
   // take, but a few reads are intentionally ungated for signed-in internal users (e.g.
   // listRequisitions()) and would otherwise be readable by anyone who finds this URL, with no
-  // login at all. Only apply/agency/selfschedule are meant to be reachable here.
+  // login at all. Only apply/agency/selfschedule are meant to be reachable here. Apps Script
+  // web apps can't set a real HTTP status code (doGet always returns 200), so this renders as
+  // a genuine "not found" page rather than a real 404 status — and never hints an internal
+  // app exists behind this URL, unlike silently falling back to the apply page would.
   var PUBLIC_PAGES_ = { apply: 1, agency: 1, selfschedule: 1 };
   var pubUrl_ = PropertiesService.getScriptProperties().getProperty('PUBLIC_APP_URL');
-  if (pubUrl_ && ScriptApp.getService().getUrl() === pubUrl_ && !PUBLIC_PAGES_[p]) p = 'apply';
+  if (pubUrl_ && ScriptApp.getService().getUrl() === pubUrl_ && !PUBLIC_PAGES_[p]) {
+    return HtmlService.createHtmlOutput('<!doctype html><title>Not found</title>' +
+      '<body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f5f1;' +
+      'color:#1a1a1a;display:flex;align-items:center;justify-content:center;height:90vh;margin:0">' +
+      '<div style="text-align:center"><h1 style="font-size:22px;margin:0 0 6px">404</h1>' +
+      '<div style="color:#777;font-size:14px">Not found.</div></div></body>')
+      .setTitle('Not found').addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  }
   var file = p === 'apply' ? 'Apply' : (p === 'source' ? 'Source' : (p === 'agency' ? 'Agency' : (p === 'selfschedule' ? 'SelfSchedule' : 'Index')));
   return HtmlService.createHtmlOutputFromFile(file)
     .setTitle('Healthy18 ATS').addMetaTag('viewport', 'width=device-width, initial-scale=1');
