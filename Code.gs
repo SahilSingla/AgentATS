@@ -3765,6 +3765,25 @@ function ensureInterviewSlaCols_(sh) {
   for (var i = 0; i < 2; i++) if ((existing[i] || '').toString() !== headers[i]) { need = true; break; }
   if (need) sh.getRange(1, 18, 1, 2).setValues([headers]).setFontWeight('bold');
 }
+// Read-only companion to checkInterviewSla() — that function only emails reminders/escalations;
+// this exposes the same "Scheduled, no feedback, 24h+" set in-app for the Insights & Alerts
+// page (§4.5 of the UX scope), since today it's otherwise only visible via email.
+function getOverdueFeedback() {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var ish = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Interviews'); if (!ish) return [];
+  var d = ish.getDataRange().getValues(), out = [], tz = Session.getScriptTimeZone(), now = new Date();
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][9] || '') !== 'Scheduled') continue;
+    var when = d[i][6] instanceof Date ? d[i][6] : new Date(d[i][6]);
+    if (isNaN(when.getTime())) continue;
+    var hours = (now.getTime() - when.getTime()) / 3600000;
+    if (hours < 24) continue;
+    out.push({ interviewId: d[i][0], candId: d[i][1], candName: d[i][2], reqId: d[i][3], stage: d[i][4],
+      interviewers: d[i][5] || '', hoursOverdue: Math.round(hours), when: Utilities.formatDate(when, tz, 'yyyy-MM-dd HH:mm') });
+  }
+  out.sort(function (a, b) { return b.hoursOverdue - a.hoursOverdue; });
+  return out;
+}
 // Flags interviews whose scheduled time has passed with no feedback submitted yet (Interview
 // Status still 'Scheduled' — submitRoundFeedback() is what flips it to 'Completed'): reminds
 // the interviewer(s) after 24h, escalates to the company alerts email (🏢 Company settings)
