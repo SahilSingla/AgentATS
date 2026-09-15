@@ -202,6 +202,11 @@
   .kcard:hover{border-color:var(--violet-100);box-shadow:0 10px 24px -14px rgba(108,76,241,.28)}
   .kcard-top{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--n500)}
   .kcard-title{font-size:13px;font-weight:600;color:var(--ink);margin:3px 0 4px}
+  /* ===== Role library card grid ===== */
+  .rl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:6px}
+  .rl-card{background:var(--surface);border:1px solid var(--n200);border-radius:12px;padding:12px 14px}
+  .rl-top{font-size:13.5px;margin-bottom:3px}
+  .rl-acts{margin-top:8px;font-size:12px}
 </style></head>
 <body>
  <div class="appshell">
@@ -218,6 +223,7 @@
      <button class="rail-link" onclick="navGo(this,openTalentUpload)">🌱 <span>Talent Pool</span></button>
      <button class="rail-link" onclick="navGo(this,openScheduleTop)">📅 <span>Schedule</span></button>
      <button class="rail-link" onclick="navGo(this,openInterviewRounds)">🧑‍⚖️ <span>Interview Rounds</span></button>
+     <button class="rail-link" onclick="navGo(this,openRoleLibrary)">📚 <span>Role Library</span></button>
     </div>
     <div class="rail-section">
      <div class="rail-label">Intelligence &amp; Automation</div>
@@ -226,7 +232,7 @@
     </div>
    </div>
    <div class="rail-spacer"></div>
-   <div class="rail-verchip">v108 · Dizno</div>
+   <div class="rail-verchip">v109 · Dizno</div>
   </aside>
   <div class="mainCol">
    <header>
@@ -247,7 +253,6 @@
         <div class="menu" id="moreMenu">
          <a onclick="closeMore();openTeam()">👥 Team &amp; access</a>
          <a onclick="closeMore();openMyAvailability()">🗓️ My availability</a>
-         <a onclick="closeMore();openRoleLibrary()">📚 Role library</a>
          <a onclick="closeMore();openJobArch()">🏗 Architecture</a>
          <a onclick="closeMore();openOrgContext()">🏢 Company</a>
          <hr>
@@ -631,7 +636,7 @@ function availAddRow(){var el=document.getElementById('availRows');if(el)el.inse
 function availLoad(){var el=document.getElementById('availRows');if(!el)return;el.innerHTML='Loading…';GSRUN().withSuccessHandler(function(rules){el.innerHTML=(rules||[]).map(function(r){return availRowHtml(r.day,r.start,r.end);}).join('');}).withFailureHandler(function(x){el.innerHTML='⚠️ '+esc2(x.message);}).getMyAvailability();}
 function availSave(){var rows=Array.prototype.slice.call(document.querySelectorAll('#availRows .sr'));var rules=rows.map(function(r){return {day:r.querySelector('.availDay').value,start:r.querySelector('.availStart').value,end:r.querySelector('.availEnd').value};});var th=add('saving availability…','bot think');GSRUN().withSuccessHandler(function(r){th.remove();add((r&&r.message)||(r&&r.error)||'Saved.','bot');closeModal();}).withFailureHandler(function(x){th.remove();add('⚠️ '+x.message,'bot');}).saveMyAvailability(rules);}
 function openRoleLibrary(){panel.innerHTML='<h3>📚 Role library</h3><div class="sub2" style="margin-bottom:8px">Reusable title/JD/comp-range templates — pick one from \u201cNew requisition\u201d to prefill the form.</div><div id="rlBody">Loading…</div><div class="acts"><button class="cancel" onclick="closeModal()">Close</button><button class="save" onclick="openRoleLibEdit()">+ Add role</button></div>';overlay.style.display='flex';loadRoleLibrary();}
-function loadRoleLibrary(){var el=document.getElementById('rlBody');if(!el)return;GSRUN().withSuccessHandler(function(list){window._rlCache=list||[];if(!list||!list.length){el.innerHTML='<p style="color:#777">No roles saved yet.</p>';return;}el.innerHTML=list.map(function(r){return '<div class="sr" style="display:flex;justify-content:space-between;align-items:center"><div><b>'+esc2(r.title)+'</b>'+(r.level?' · '+esc2(r.level):'')+(r.line_of_business?' · '+esc2(r.line_of_business):'')+'<div class="sub2">'+[r.department,(r.comp_min||r.comp_max)?('Comp '+esc2(money2(r.comp_min||''))+'–'+esc2(money2(r.comp_max||''))):''].filter(Boolean).join(' · ')+'</div></div><div><a onclick="openRoleLibEdit(\''+r.id+'\')" style="cursor:pointer;color:#3a6ea5">Edit</a> &nbsp;·&nbsp; <a onclick="deleteRoleLibUI(\''+r.id+'\')" style="cursor:pointer;color:#9a3b3b">Delete</a></div></div>';}).join('');}).withFailureHandler(function(x){el.innerHTML='⚠️ '+esc2(x.message);}).listRoleLibrary();}
+function loadRoleLibrary(){var el=document.getElementById('rlBody');if(!el)return;GSRUN().withSuccessHandler(function(list){window._rlCache=list||[];if(!list||!list.length){el.innerHTML='<p style="color:#777">No roles saved yet.</p>';return;}el.innerHTML='<div class="rl-grid">'+list.map(function(r){return '<div class="rl-card"><div class="rl-top"><b>'+esc2(r.title)+'</b>'+(r.level?' <span class="pill">'+esc2(r.level)+'</span>':'')+'</div><div class="sub2">'+[r.line_of_business,r.department].filter(Boolean).join(' · ')+'</div>'+((r.comp_min||r.comp_max)?'<div class="sub2" style="margin-top:4px">Comp '+esc2(money2(r.comp_min||''))+'–'+esc2(money2(r.comp_max||''))+'</div>':'')+'<div class="rl-acts"><a onclick="openRoleLibEdit(\''+r.id+'\')" style="cursor:pointer;color:#3a6ea5">Edit</a> &nbsp;·&nbsp; <a onclick="deleteRoleLibUI(\''+r.id+'\')" style="cursor:pointer;color:#9a3b3b">Delete</a></div></div>';}).join('')+'</div>';}).withFailureHandler(function(x){el.innerHTML='⚠️ '+esc2(x.message);}).listRoleLibrary();}
 function openRoleLibEdit(id){var r=(window._rlCache||[]).filter(function(x){return x.id===id;})[0]||{};panel.innerHTML='<div class="nav"><a onclick="openRoleLibrary()">← Role library</a></div><h3>'+(id?'Edit role':'Add role')+'</h3>'+fld('Title *','rlTitle')+fld('Level','rlLevel','select',['Junior','Mid','Senior','Staff','Lead','Manager'])+'<div class="two">'+fld('Line of Business','rlLob')+fld('Department','rlDept')+'</div>'+fld('Employment Type','rlEmpType','select',['Full-time','Part-time','Contract','Internship'])+'<div class="two">'+fld('Comp Min','rlCompMin','number')+fld('Comp Max','rlCompMax','number')+'</div>'+fld('Responsibilities / JD','rlJd','textarea')+'<input type="hidden" name="rlId" value="'+esc2(id||'')+'"><div class="acts"><button class="cancel" onclick="openRoleLibrary()">Cancel</button><button class="save" onclick="submitRoleLibEdit()">Save</button></div>';overlay.style.display='flex';function setv(n,v){var el=panel.querySelector('[name="'+n+'"]');if(el&&v!=null&&v!=='')el.value=v;}setv('rlTitle',r.title);setv('rlLevel',r.level);setv('rlLob',r.line_of_business);setv('rlDept',r.department);setv('rlEmpType',r.employment_type);setv('rlCompMin',r.comp_min);setv('rlCompMax',r.comp_max);setv('rlJd',r.jd);var ta=panel.querySelector('[name="rlJd"]');if(ta)ta.rows=6;}
 function submitRoleLibEdit(){var v=collect();if(!v.rlTitle){warn('Title is required.');return;}var th=add('saving role…','bot think');GSRUN().withSuccessHandler(function(r){th.remove();add((r&&r.message)||(r&&r.error)||'Done','bot');openRoleLibrary();}).withFailureHandler(function(x){th.remove();warn('⚠️ '+x.message);}).saveRoleLibraryEntry({id:v.rlId||undefined,title:v.rlTitle,level:v.rlLevel,line_of_business:v.rlLob,department:v.rlDept,employment_type:v.rlEmpType,comp_min:v.rlCompMin,comp_max:v.rlCompMax,jd:v.rlJd});}
 function deleteRoleLibUI(id){if(!confirm('Remove this role from the library?'))return;var th=add('deleting…','bot think');GSRUN().withSuccessHandler(function(r){th.remove();add((r&&r.message)||(r&&r.error)||'Done','bot');openRoleLibrary();}).withFailureHandler(function(x){th.remove();warn('⚠️ '+x.message);}).deleteRoleLibraryEntry(id);}
