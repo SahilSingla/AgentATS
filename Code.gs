@@ -2626,7 +2626,7 @@ function stampApplicationId_(sh, row) {
 // All applications (rows) for one person, newest first — same Candidate ID across every
 // role they've been in the pipeline for, per the "one candidate, many applications" model.
 function getCandidateHistory(candidateIdOrEmail) {
-  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth — lowered from Recruiter so the candidate-detail history strip (any signed-in teammate viewing a profile) can call it; same visibility as getCandidateFull itself
   var key = (candidateIdOrEmail || '').toString().trim().toLowerCase(); if (!key) return [];
   var sh = trackerSheet_(); ensureApplicationIdCol_(sh);
   var d = sh.getDataRange().getValues(), candId = '', out = [];
@@ -3228,6 +3228,7 @@ function getCandidateFull(candId) {
   try { v.interviews = getInterviews(candId); } catch (e) { v.interviews = []; }
   try { v.audit = getAudit_(candId); } catch (e) { v.audit = []; }
   try { v.appFeedback = getInterviewFeedback_(candId); } catch (e) { v.appFeedback = []; }
+  try { v.appHistory = getCandidateHistory(candId); } catch (e) { v.appHistory = []; }
   return v;
 }
 function aiBrief(candId) {
