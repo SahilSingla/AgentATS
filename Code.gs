@@ -3513,6 +3513,24 @@ function getPendingRoundDecisions() {
   }
   return out;
 }
+// Cross-candidate "All rounds" read for the new Interview Rounds page (§4.4 of the UX scope) —
+// every interview row across the org, for SLA/status visibility without opening a spreadsheet.
+// Recruiter+ (not Admin-only like getPendingRoundDecisions) since it's read-only visibility,
+// same role floor as most of the requisition/pipeline views.
+function getAllInterviewRounds() {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var ish = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Interviews'); if (!ish) return [];
+  ensureInterviewDecisionCols_(ish);
+  var d = ish.getDataRange().getValues(), out = [], tz = Session.getScriptTimeZone();
+  for (var i = 1; i < d.length; i++) {
+    if (!d[i][1]) continue;
+    out.push({ interviewId: d[i][0], candId: d[i][1], candName: d[i][2], reqId: d[i][3], stage: d[i][4],
+      interviewers: d[i][5] || '', status: d[i][9] || '', recommendation: d[i][11] || '', decisionStatus: d[i][12] || '',
+      when: (d[i][6] instanceof Date) ? Utilities.formatDate(d[i][6], tz, 'yyyy-MM-dd HH:mm') : String(d[i][6] || '') });
+  }
+  out.sort(function (a, b) { return (b.when || '').localeCompare(a.when || ''); });
+  return out;
+}
 // ---------- OFFER WORKFLOW ----------
 // Status progression: Pending Approval -> Offer Approved -> Extended -> Accepted/Declined ->
 // (if Accepted) Joined/No-show. Recruiter proposes within the requisition's approved budget
