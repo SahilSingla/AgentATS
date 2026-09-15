@@ -4,7 +4,7 @@
 
 ![Why Healthy18 ATS — free vs. thousands a year, you own your data, no per-seat pricing, bring your own AI key, explainable and bias-aware, open source](agentats-why.gif)
 
-No servers. No database bills. No per-seat pricing. You paste six files into a free Google Apps Script project, run one function, and you have a working applicant tracking system: a hiring web app for your team, a public careers page for candidates, AI resume parsing and scoring, interview scheduling, debriefs, and analytics — all stored in a Google Sheet and Drive folder that *you* own.
+No servers. No database bills. No per-seat pricing. You paste a handful of files into a free Google Apps Script project, run one function, and you have a working applicant tracking system: a hiring web app for your team, a public careers page for candidates, AI resume parsing and scoring, interview scheduling, debriefs, and analytics — all stored in a Google Sheet and Drive folder that *you* own.
 
 ---
 
@@ -18,13 +18,20 @@ Healthy18 ATS is a gift to the HR and talent-acquisition community. It exists to
 
 **Requisitions & pipeline**
 - Full requisition management: title, department, location, level, openings, salary band, priority, status, JD attachment, hiring manager and recruiter ownership.
-- Kanban-style pipeline with configurable stages, stage-change tracking, and "stuck candidate" SLA alerts on your Today view.
+- New requisitions start "Pending Approval"; once an Admin approves, core terms are locked, and any later change goes through a versioned change-request flow (submit → Admin decides → new version recorded, full history viewable).
+- Kanban-style pipeline board grouped by requisition status, with configurable stages, stage-change tracking, and "stuck candidate" SLA alerts on the Dashboard.
+- Role Library: save reusable role templates (title, level, comp range, responsibilities/JD) and load one into a new requisition in a click, instead of retyping the same role every time.
 - Archiving keeps large pipelines fast while preserving a year of live data for annual metrics, with search and restore.
 
-**Candidate intake**
+**Candidate intake & sourcing**
 - Public careers page (`?page=apply`) — candidates apply with a CV upload; submissions are capped and size-limited to resist abuse.
 - CV-by-email: point a `careers@` mailbox at the included forwarder script and every emailed CV is parsed and added automatically — with retry logic so no CV is ever silently lost.
+- Consulting-firm portal: each firm gets its own unguessable link, and every submission through it is auto-attributed to that firm server-side.
+- Generic Google Sheet import for LinkedIn exports or an agency's own candidate tracker, with flexible column mapping and dedup by email or phone.
+- Auto-generated Google Form for social/LinkedIn job postings — submissions ingest straight into the pipeline.
+- A Sourcing Links page gathers every one of the above (firm links, job-posting form links) in one place to copy and re-share, instead of hunting through a specific requisition.
 - Manual add, bulk upload, and chat-style commands ("Add Asha Rao, name@example.com, backend engineer").
+- A global Candidate ID persists across every application a person makes, so reapplying for a different role keeps their prior history instead of overwriting it; a "Do Not Consider" flag is independent of any single rejection.
 
 **AI resume parsing & scoring**
 - Gemini-powered CV parsing: name, contact, experience, skills, notice period, compensation, work authorization and more, straight into structured columns.
@@ -32,17 +39,20 @@ Healthy18 ATS is a gift to the HR and talent-acquisition community. It exists to
 - Match grades and fit scores per requisition, benchmark generation from your own hiring bar, and stack ranking.
 - Bias-masked screening: evaluate candidates with identifying details hidden.
 
-**Interviews & decisions**
+**Interviews, decisions & offers**
 - Interview scheduling with Google Calendar + Meet links, RSVP tracking, and per-requisition interview plans (each role gets its own rounds).
-- Structured feedback via Google Forms or Slack-style slash commands.
+- Three scheduling modes — Internal HR, External Recruiter, or Self-serve, where the candidate books their own slot against interviewers' real calendar availability (interviewers can also declare recurring availability windows).
+- Structured feedback via Google Forms, with each round tracking interview status, the interviewer's recommendation, and the Admin's decision as three separate fields — only the Admin's decision advances or closes a candidate. A dedicated Interview Rounds page shows every pending decision and the full history org-wide.
+- Automatic feedback SLA reminders (24h) and escalation (48h) when feedback goes missing — visible in-app on the Insights & Alerts page as well as by email.
+- End-to-end offer workflow: proposal → Admin approval → extension → accept/decline → joined/no-show, with automatic thank-you emails to the candidates who weren't selected.
 - Debrief view and a candidate packet PDF for hiring committees.
 
-**Sourcing & analytics**
-- Sourcing engine: live opt-in sourcing (e.g. Hacker News "Who wants to be hired") plus an X-ray query builder for LinkedIn, GitHub and resume search.
+**Recruiting analytics**
 - Recruiting analytics per hiring manager and per role, interview round metrics, and a one-click Looker Studio data tab for live dashboards.
+- A redesigned Dashboard gives a one-glance snapshot on login: live KPIs, a recruitment funnel, active requisitions with progress bars, and everything currently waiting on you.
 
 **Team, trust & safety**
-- Role-based access: Admin, Recruiter, Hiring Manager, Interviewer — enforced server-side, with personal access links per teammate.
+- Role-based access: Admin, Recruiter, Hiring Manager, Interviewer — enforced server-side, with a personal access link for every teammate (hiring managers get theirs automatically the moment they're added).
 - Audit trail of changes; formula-injection and abuse protections; secrets kept in Script Properties, never in code.
 - Notifications by email or Google Chat webhook; automated backups of your tracker.
 
@@ -110,7 +120,7 @@ If you're a 2,000-person company with a compliance team, buy an enterprise ATS. 
 Healthy18 ATS is fully self-provisioning — you never touch a Sheet ID or folder ID:
 
 1. Go to [script.google.com](https://script.google.com) → **New project**.
-2. Paste in the six files from this repo (`Code.gs`, `TalentRubric.gs`, `Index.html`, `Apply.html`, `Source.html`, and optionally `CvForwarder.gs` for the careers mailbox).
+2. Paste in the eight files from this repo (`Code.gs`, `AiGateway.gs`, `TalentRubric.gs`, `Index.html`, `Apply.html`, `Source.html`, `Agency.html`, `SelfSchedule.html`), plus optionally `CvForwarder.gs` in its own separate project for the careers mailbox.
 3. In **Project Settings → Script Properties**, add one property: `GEMINI_KEY` = your Google AI Studio API key (free to create at [aistudio.google.com](https://aistudio.google.com)).
 4. In the editor, select **`firstRun`** and click **Run** (authorize when asked). It creates your tracker spreadsheet and CV folder, builds every tab, makes you the Admin, and logs your new Sheet's URL.
 5. **Deploy → New deployment → Web app** — Execute as: *Me*, Who has access: *Anyone*. Copy the URL.
@@ -133,10 +143,11 @@ That's it. Open the URL: that's your ATS. Add `?page=apply` for your public care
 
 ## Roadmap
 
-Tracked but not yet built:
+Everything originally tracked here — a role/JD template library and better hiring-manager access — has shipped: see Role Library above, and the access-link fix under Security. What's left is smaller:
 
-- A pre-defined library of titles, roles, responsibilities, JDs, and comp ranges to speed up requisition creation.
-- SSO-based login for hiring managers (beyond the current per-teammate token links).
+- Cosmetic restyle of the Scheduling and Google Apps Script/Cloud Bridge settings screens to match the rest of the app (both already work end-to-end; only the visual pass is pending).
+- Configurable email templates — notification copy is currently fixed in code; making it editable would need a small new backend module.
+- True SSO for hiring managers was investigated and intentionally not built (it needs a domain-restricted deployment mode that conflicts with the fully-public candidate-facing pages). The shipped fix instead guarantees every hiring manager gets a personal access link the moment they're added — see Security.
 
 Have an opinion on priority, or want to build one of these? See Community & contributing below.
 
