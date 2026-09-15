@@ -30,10 +30,10 @@
  #chatform{display:none}
  #box{flex:1;padding:11px;border:1px solid #ddd;border-radius:9px;font-size:14px}
  #clip,#chatform button{background:#2f6f4f;color:#fff;border:0;border-radius:9px;padding:0 15px;height:42px;font-weight:600;cursor:pointer}#clip{background:#eef3f8;color:#3a6ea5;font-size:18px}
- #overlay{flex:1;min-height:0;background:transparent;display:none;align-items:flex-start;justify-content:center;padding:20px 24px;overflow-y:auto;box-sizing:border-box}
- #panelWrap{position:relative;width:100%;max-width:580px;display:flex}
- #xClose{position:absolute;top:10px;right:10px;z-index:6;width:32px;height:32px;border-radius:50%;border:0;background:rgba(241,239,232,.95);color:#444;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18);line-height:1}#xClose:hover{background:#e2ddd0;color:#000}
- #panel{background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 1px 3px rgba(20,19,24,.06);border:1px solid #ece7da}#panel h3{margin:0 0 14px;font-size:19px;font-weight:750;letter-spacing:-.3px}#panel h4{margin:18px 0 7px;font-size:11.5px;font-weight:700;color:#8a8a82;text-transform:uppercase;letter-spacing:.6px}
+ #overlay{flex:1;min-height:0;background:transparent;display:none;align-items:stretch;justify-content:stretch;padding:0;overflow-y:auto;box-sizing:border-box}
+ #panelWrap{position:relative;width:100%;max-width:none;display:flex}
+ #xClose{display:none}
+ #panel{background:transparent;border-radius:0;max-width:none;width:100%;max-height:none;overflow-y:visible;padding:24px 28px;box-shadow:none;border:0}#panel h3{margin:0 0 14px;font-size:19px;font-weight:750;letter-spacing:-.3px}#panel h4{margin:18px 0 7px;font-size:11.5px;font-weight:700;color:#8a8a82;text-transform:uppercase;letter-spacing:.6px}
  .fld{margin-bottom:10px}.fld label{display:block;font-size:12px;font-weight:600;color:#444;margin-bottom:3px}
  .fld input,.fld select,.fld textarea{width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box}
  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -84,8 +84,8 @@
  .me{background:var(--violet);color:#fff}.bot{background:var(--surface);border-color:var(--n200)}
  #box{border-color:var(--n300);border-radius:11px}
  #clip,#chatform button{border-radius:11px}#chatform button{background:var(--violet)}#chatform button:hover{background:var(--violet-700)}#clip{background:var(--violet-50);color:var(--violet-700)}
- #panel{border-radius:18px;max-width:min(1040px,95vw);max-height:94vh}
- #panelWrap{max-width:min(1040px,95vw)}
+ #panel{max-width:none}
+ #panelWrap{max-width:none}
  #panel h3{font-family:var(--disp);font-weight:700;letter-spacing:-.02em;font-size:23px}
  #panel h4{color:var(--n500)}
  .save{background:var(--violet);border-radius:10px}.save:hover{background:var(--violet-700)}
@@ -264,7 +264,7 @@
     </div>
    </div>
    <div class="rail-spacer"></div>
-   <div class="rail-verchip">v112 · Dizno</div>
+   <div class="rail-verchip">v113 · Dizno</div>
   </aside>
   <div class="mainCol">
    <header>
