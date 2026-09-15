@@ -4180,9 +4180,35 @@ function createJobPostingForm(reqId) {
   form.addTextItem().setTitle('Notice period').setRequired(false);
   form.setDestination(FormApp.DestinationType.SPREADSHEET, SpreadsheetApp.openById(SHEET_ID).getId());
   PropertiesService.getScriptProperties().setProperty('JOBFORM_' + form.getId(), reqId);
+  // Reverse index (reqId -> form) so the link can be found again later — previously the URL
+  // was only ever shown once at creation time and lost if the recruiter didn't copy it.
+  PropertiesService.getScriptProperties().setProperty('JOBFORM_REQ_' + reqId, JSON.stringify({
+    formId: form.getId(), url: form.getPublishedUrl(), editUrl: form.getEditUrl(), createdAt: new Date().toISOString()
+  }));
   ScriptApp.newTrigger('onJobFormSubmit').forForm(form).onFormSubmit().create();
   logAudit_(reqId, (_g.name || _g.email) + ' created a social job-posting form: ' + form.getPublishedUrl());
   return { ok: true, url: form.getPublishedUrl(), editUrl: form.getEditUrl() };
+}
+// Every social job-posting form created so far (see the reverse index above), for the
+// Sourcing Links page (§4.8 of the UX scope) — previously these links had no place to be
+// re-found once the creation toast was dismissed.
+function listJobPostingForms() {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var props = PropertiesService.getScriptProperties().getProperties();
+  var reqTitles = {};
+  try {
+    var rq = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions').getDataRange().getValues();
+    for (var j = 1; j < rq.length; j++) if (rq[j][0]) reqTitles[rq[j][0].toString()] = rq[j][1] || '';
+  } catch (e) {}
+  var out = [];
+  Object.keys(props).forEach(function (k) {
+    if (k.indexOf('JOBFORM_REQ_') !== 0) return;
+    var reqId = k.slice('JOBFORM_REQ_'.length);
+    var info = {}; try { info = JSON.parse(props[k]); } catch (e) {}
+    out.push({ reqId: reqId, reqTitle: reqTitles[reqId] || '', url: info.url || '', editUrl: info.editUrl || '', createdAt: info.createdAt || '' });
+  });
+  out.sort(function (a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+  return out;
 }
 // Installed trigger target — ingests each Google Form response into the Tracker.
 function onJobFormSubmit(e) {
