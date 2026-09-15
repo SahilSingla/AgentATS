@@ -264,7 +264,7 @@
     </div>
    </div>
    <div class="rail-spacer"></div>
-   <div class="rail-verchip">v115 · Dizno</div>
+   <div class="rail-verchip">v116 · Dizno</div>
   </aside>
   <div class="mainCol">
    <header>
@@ -445,8 +445,11 @@ function gateActbar(){var role=window._me&&window._me.role;if(!role||role==='Rec
 var _meTok='';try{_meTok=(new URLSearchParams(location.search)).get('u')||'';}catch(e){}
 window._me={role:'Recruiter'};
 setTodayDate();loadBrand();
-if(_meTok){GSRUN().withSuccessHandler(function(me){setMe(me);applyRole(me&&me.role);openToday();}).withFailureHandler(function(){openToday();}).whoAmI(_meTok);}
-GSRUN().withSuccessHandler(function(s){window._bias=!!(s&&s.biasMask);updateBiasBtn();try{if(!_meTok)openToday();}catch(e){}}).getSettings();
+// Always resolve identity server-side, token or not: on a Workspace-SSO deployment there is no
+// ?u= token, and whoAmI('') falls through to the signed-in Google identity (Session.getActiveUser())
+// matched against the Users sheet, so the UI reflects the visitor's real role either way.
+GSRUN().withSuccessHandler(function(me){setMe(me);applyRole(me&&me.role);openToday();}).withFailureHandler(function(){openToday();}).whoAmI(_meTok);
+GSRUN().withSuccessHandler(function(s){window._bias=!!(s&&s.biasMask);updateBiasBtn();}).getSettings();
 /* PERF: warm the Requisitions board cache shortly after load so the first click is instant */
 setTimeout(function(){try{gcall('getReqBoard',[_todayScope()],function(){},function(){},'board_'+_todayScope());}catch(e){}},1400);
 function openSearchResults(q){_search={q:q||'',type:'all',cat:'all',reqs:[],cands:[]};panel.innerHTML='<h3>🔍 Search</h3><div class="fld"><input id="sq" placeholder="Search candidates, requisitions, status…" onkeydown="if(event.key===\'Enter\')runSearch()"></div><div id="sres" class="sub2">Searching…</div><div class="acts"><button class="cancel" onclick="closeModal()">Close</button></div>';overlay.style.display='flex';document.getElementById('sq').value=q||'';runSearch();}
