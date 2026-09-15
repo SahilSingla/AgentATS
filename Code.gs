@@ -2915,7 +2915,7 @@ function getReqBoard(scopeEmail) {
   // client decided whether to send an email — any HM could call getReqBoard('') and see all reqs.
   if (_g.role === 'HiringManager') scopeEmail = _g.email || scopeEmail;
   var _ck = 'board_' + cacheVer_() + '_' + (scopeEmail || ''); var _hit = cacheGet_(_ck); if (_hit) return _hit;
-  if (SB_ON_()) { try { var _sb = sbGetReqBoard_(scopeEmail); if (_sb) { cachePut_(_ck, _sb, 120); return _sb; } } catch (e) {} }
+  if (typeof SB_ON_ === 'function' && SB_ON_()) { try { var _sb = sbGetReqBoard_(scopeEmail); if (_sb) { cachePut_(_ck, _sb, 120); return _sb; } } catch (e) {} }
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var rq = ss.getSheetByName('Requisitions'), reqs = rq ? rq.getDataRange().getValues() : [];
   var tr = ss.getSheetByName('Tracker').getDataRange().getValues(), counts = {};
@@ -3172,7 +3172,7 @@ function getReqPipeline(reqId, doRank) {
   var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
   var _ck = 'pipe_' + cacheVer_() + '_' + reqId;
   if (!doRank) { var _hit = cacheGet_(_ck); if (_hit) return _hit; }
-  if (SB_ON_() && !doRank) {
+  if (typeof SB_ON_ === 'function' && SB_ON_() && !doRank) {
     try {
       var _sc = sbGetReqPipeline_(reqId);
       if (_sc) {

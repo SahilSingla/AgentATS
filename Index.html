@@ -24,16 +24,16 @@
  .bar button:hover{background:#e1ecf8}.bar button:active{transform:translateY(1px)}
  .bar button.primary{background:linear-gradient(135deg,#2f6f4f,#368a5f);color:#fff;border-color:#2f6f4f;box-shadow:0 2px 6px rgba(30,90,60,.22)}
  @media(max-width:640px){.appname,.recdesig{display:none}.co{font-size:15px}}
- #chat{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
- .msg{max-width:80%;padding:10px 13px;border-radius:12px;font-size:14px;line-height:1.45;white-space:pre-wrap}
+ #chat{position:fixed;right:20px;bottom:20px;width:340px;max-width:calc(100vw - 40px);max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px;z-index:50;pointer-events:none}
+ .msg{max-width:100%;padding:10px 13px;border-radius:12px;font-size:13.5px;line-height:1.45;white-space:pre-wrap;box-shadow:0 10px 28px -8px rgba(20,19,24,.25);pointer-events:auto}
  .me{align-self:flex-end;background:#3a6ea5;color:#fff}.bot{align-self:flex-start;background:#fff;border:1px solid #e2ddd0}.bot.think{color:#999;font-style:italic}
- #chatform{display:flex;gap:8px;padding:12px;background:#fff;border-top:1px solid #e2ddd0;align-items:center}
+ #chatform{display:none}
  #box{flex:1;padding:11px;border:1px solid #ddd;border-radius:9px;font-size:14px}
  #clip,#chatform button{background:#2f6f4f;color:#fff;border:0;border-radius:9px;padding:0 15px;height:42px;font-weight:600;cursor:pointer}#clip{background:#eef3f8;color:#3a6ea5;font-size:18px}
- #overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+ #overlay{flex:1;min-height:0;background:transparent;display:none;align-items:flex-start;justify-content:center;padding:20px 24px;overflow-y:auto;box-sizing:border-box}
  #panelWrap{position:relative;width:100%;max-width:580px;display:flex}
  #xClose{position:absolute;top:10px;right:10px;z-index:6;width:32px;height:32px;border-radius:50%;border:0;background:rgba(241,239,232,.95);color:#444;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18);line-height:1}#xClose:hover{background:#e2ddd0;color:#000}
- #panel{background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 24px 64px rgba(20,30,50,.30)}#panel h3{margin:0 0 14px;font-size:19px;font-weight:750;letter-spacing:-.3px}#panel h4{margin:18px 0 7px;font-size:11.5px;font-weight:700;color:#8a8a82;text-transform:uppercase;letter-spacing:.6px}
+ #panel{background:#fff;border-radius:16px;max-width:580px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;box-shadow:0 1px 3px rgba(20,19,24,.06);border:1px solid #ece7da}#panel h3{margin:0 0 14px;font-size:19px;font-weight:750;letter-spacing:-.3px}#panel h4{margin:18px 0 7px;font-size:11.5px;font-weight:700;color:#8a8a82;text-transform:uppercase;letter-spacing:.6px}
  .fld{margin-bottom:10px}.fld label{display:block;font-size:12px;font-weight:600;color:#444;margin-bottom:3px}
  .fld input,.fld select,.fld textarea{width:100%;padding:9px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box}
  .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -255,9 +255,16 @@
      <div class="rail-label">Integrations &amp; Ops</div>
      <button class="rail-link" onclick="navGo(this,openSourcingLinks)">🔗 <span>Sourcing Links</span></button>
     </div>
+    <div class="rail-section">
+     <div class="rail-label">Settings</div>
+     <button class="rail-link" onclick="navGo(this,openTeam)">👥 <span>Team &amp; access</span></button>
+     <button class="rail-link" onclick="navGo(this,openMyAvailability)">🗓️ <span>My availability</span></button>
+     <button class="rail-link" onclick="navGo(this,openOrgContext)">🏢 <span>Company</span></button>
+     <button class="rail-link" onclick="navGo(this,openJobArch)">🏗 <span>Architecture</span></button>
+    </div>
    </div>
    <div class="rail-spacer"></div>
-   <div class="rail-verchip">v111 · Dizno</div>
+   <div class="rail-verchip">v112 · Dizno</div>
   </aside>
   <div class="mainCol">
    <header>
@@ -276,11 +283,6 @@
        <div class="more-wrap">
         <button class="iconbtn" id="moreBtn" onclick="toggleMore(event)" style="width:auto;padding:0 12px;gap:6px;font-weight:600;font-size:14px;font-family:var(--bodyf)">More ▾</button>
         <div class="menu" id="moreMenu">
-         <a onclick="closeMore();openTeam()">👥 Team &amp; access</a>
-         <a onclick="closeMore();openMyAvailability()">🗓️ My availability</a>
-         <a onclick="closeMore();openJobArch()">🏗 Architecture</a>
-         <a onclick="closeMore();openOrgContext()">🏢 Company</a>
-         <hr>
          <a onclick="closeMore();importFeedback()">📥 Email feedback</a>
          <a onclick="closeMore();openPerf()">⚡ Speed report</a>
         </div>
@@ -290,13 +292,13 @@
      </div>
     </div>
    </header>
+   <div id="overlay"><div id="panelWrap"><button id="xClose" onclick="closeModal()" title="Home">✕</button><div id="panel"></div></div></div>
    <div id="chat"></div>
    <form id="chatform" onsubmit="send(event)">
      <input id="box" placeholder="Type a command…" autocomplete="off"><button type="submit">Send</button>
    </form>
   </div>
  </div>
- <div id="overlay"><div id="panelWrap"><button id="xClose" onclick="closeModal()" title="Close">✕</button><div id="panel"></div></div></div>
 <script>
 /* ---- SECURITY (C-1/C-3): every server call automatically carries this user's ?u= access
    token as one extra final argument that looks like "#tok:abc123". The server verifies it
@@ -410,7 +412,7 @@ function openDebrief(candId){panel.innerHTML='<div class="nav"><a onclick="openC
 function debriefDecision(candId,dec){GSRUN().withSuccessHandler(function(r){openCandidate(candId);}).withFailureHandler(function(x){warn('⚠️ '+x.message);}).recordDebriefDecision(candId,dec);}
 function genPacket(candId){var th=add('building candidate packet PDF…','bot think');GSRUN().withSuccessHandler(function(r){th.remove();if(r&&r.url){add('📄 Packet ready — opening…','bot');window.open(r.url,'_blank');}else{add('⚠️ '+((r&&r.error)||'failed'),'bot');}}).withFailureHandler(function(x){th.remove();add('⚠️ '+x.message,'bot');}).candidatePacketPdf(candId);}
 function calSaveText(){var t=document.getElementById('calText').value;if(!t.trim()){warn('Type some notes first.');return;}document.getElementById('calbody').innerHTML='<p style="padding:14px">Extracting must-haves…</p>';GSRUN().withSuccessHandler(function(r){window._formDirty=false;markDirty();loadCal();}).withFailureHandler(function(x){warn('⚠️ '+x.message);loadCal();}).setCalibrationFromText(_calReq,t);}
-function add(t,c){var d=document.createElement('div');d.className='msg '+c;d.textContent=t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d;}
+function add(t,c){var d=document.createElement('div');d.className='msg '+c;d.textContent=t;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;if((c||'').indexOf('think')===-1){setTimeout(function(){d.remove();},5000);}return d;}
 function esc2(s){return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 function stColor(s){s=(s||'').toLowerCase();if(s.indexOf('reject')>-1)return '#9a3b3b';if(s.indexOf('approved')>-1||s.indexOf('hire')>-1||s.indexOf('offer')>-1||s.indexOf('advanc')>-1||s.indexOf('shortlist')>-1)return '#1f7a4d';if(s.indexOf('hold')>-1||s.indexOf('pending')>-1)return '#b06a00';return '#3a6ea5';}
 function stChip(s){return s?'<span style="background:'+stColor(s)+';color:#fff;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:600;vertical-align:middle">'+esc2(s)+'</span>':'';}
@@ -454,7 +456,7 @@ function renderSearch(){var t=_search.type,cat=_search.cat,reqs=_search.reqs,can
 function send(e){e.preventDefault();var t=box.value.trim();if(!t)return;add(t,'me');box.value='';var th=add('thinking…','bot think');GSRUN().withSuccessHandler(function(r){th.remove();add(r,'bot');}).withFailureHandler(function(x){th.remove();add('⚠️ '+x.message,'bot');}).processMessage(t);}
 function _isGuardedForm(){return !!(document.getElementById('ef')||document.getElementById('erf')||document.getElementById('calNotes'));}
 if(panel)panel.addEventListener('input',function(){if(_isGuardedForm())window._formDirty=true;});
-function closeModal(){if(window._formDirty&&_isGuardedForm()){if(!confirm('You have unsaved changes. Discard them?'))return;}window._formDirty=false;overlay.style.display='none';}
+function closeModal(){if(window._formDirty&&_isGuardedForm()){if(!confirm('You have unsaved changes. Discard them?'))return;}window._formDirty=false;openToday();}
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&overlay&&overlay.style.display!=='none')closeModal();});
 if(overlay)overlay.addEventListener('mousedown',function(e){if(e.target===overlay)closeModal();});
 function fld(l,n,t,o){var h='<div class="fld"><label>'+l+'</label>';if(t==='select'){h+='<select name="'+n+'"><option value="">—</option>'+o.map(function(x){return '<option>'+x+'</option>';}).join('')+'</select>';}else if(t==='textarea'){h+='<textarea name="'+n+'" rows="2"></textarea>';}else{h+='<input name="'+n+'" type="'+(t||'text')+'">';}return h+'</div>';}
