@@ -8,17 +8,37 @@
  button{margin-top:16px;width:100%;background:#2f6f4f;color:#fff;border:0;border-radius:9px;padding:12px;font-size:15px;font-weight:600;cursor:pointer}
  #msg{margin-top:14px;font-size:14px;color:#555}
  .hp{position:absolute;left:-9999px}
+ .tabs{display:flex;gap:6px;margin-bottom:18px}
+ .tab{flex:1;text-align:center;padding:9px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#666;background:#f1efe8}
+ .tab.on{background:#2f6f4f;color:#fff}
+ table{width:100%;border-collapse:collapse;font-size:13px}
+ th,td{text-align:left;padding:7px 4px;border-bottom:1px solid #eee}
+ th{color:#888;font-weight:600;font-size:11px;text-transform:uppercase}
+ .stage{display:inline-block;padding:2px 8px;border-radius:20px;background:#eef4ef;color:#2f6f4f;font-size:11px;font-weight:600}
+ .empty{color:#888;font-size:13px;padding:10px 0}
 </style></head><body>
-<div class="card" id="form">
- <h2>Submit a candidate</h2><div class="sub" id="firmLine">Loading…</div>
- <label>Candidate full name *</label><input id="name">
- <label>Email *</label><input id="email" type="email">
- <label>Phone</label><input id="phone">
- <label>Role</label><select id="req"><option value="">Select…</option></select>
- <label>Resume (PDF/Word) *</label><input id="file" type="file" accept=".pdf,.doc,.docx">
- <input id="website" class="hp" tabindex="-1" autocomplete="off" placeholder="Leave blank">
- <button onclick="submitApp()">Submit candidate</button>
- <div id="msg"></div>
+<div class="card">
+ <div class="tabs">
+   <div class="tab on" id="tabSubmitBtn" onclick="showTab('submit')">Submit a candidate</div>
+   <div class="tab" id="tabStatusBtn" onclick="showTab('status')">My submissions</div>
+ </div>
+
+ <div id="form">
+  <h2>Submit a candidate</h2><div class="sub" id="firmLine">Loading…</div>
+  <label>Candidate full name *</label><input id="name">
+  <label>Email *</label><input id="email" type="email">
+  <label>Phone</label><input id="phone">
+  <label>Role</label><select id="req"><option value="">Select…</option></select>
+  <label>Resume (PDF/Word) *</label><input id="file" type="file" accept=".pdf,.doc,.docx">
+  <input id="website" class="hp" tabindex="-1" autocomplete="off" placeholder="Leave blank">
+  <button onclick="submitApp()">Submit candidate</button>
+  <div id="msg"></div>
+ </div>
+
+ <div id="statusPane" style="display:none">
+  <h2>My submissions</h2><div class="sub" id="statusLine">Loading…</div>
+  <div id="statusBody"></div>
+ </div>
 </div>
 <script>
  function qp(k){var m=new RegExp('[?&]'+k+'=([^&]*)').exec(location.search);return m?decodeURIComponent(m[1]):'';}
@@ -40,6 +60,30 @@
    var rd=new FileReader();
    rd.onload=function(){google.script.run.withSuccessHandler(function(res){if(String(res).indexOf('ERR:')===0){document.getElementById('msg').textContent='⚠️ '+String(res).slice(4);return;}document.getElementById('form').innerHTML='<h2>✅ Submitted</h2><div class="sub">'+esc(name)+' has been added to the pipeline. Thank you!</div><button onclick="location.reload()">Submit another</button>';}).withFailureHandler(function(x){document.getElementById('msg').textContent='⚠️ '+x.message;}).submitAgencyCandidate(TOKEN,{name:name,email:email,phone:document.getElementById('phone').value,reqId:document.getElementById('req').value,website:document.getElementById('website').value,resumeB64:rd.result.split(',')[1],resumeName:f.name,resumeType:f.type});};
    rd.readAsDataURL(f);
+ }
+
+ var _statusLoaded=false;
+ function showTab(t){
+   document.getElementById('tabSubmitBtn').className='tab'+(t==='submit'?' on':'');
+   document.getElementById('tabStatusBtn').className='tab'+(t==='status'?' on':'');
+   document.getElementById('form').style.display=(t==='submit')?'':'none';
+   document.getElementById('statusPane').style.display=(t==='status')?'':'none';
+   if(t==='status' && !_statusLoaded) loadStatus();
+ }
+ function loadStatus(){
+   if(!TOKEN){document.getElementById('statusLine').textContent='Missing link token.';return;}
+   _statusLoaded=true;
+   document.getElementById('statusLine').textContent='Loading…';
+   google.script.run.withSuccessHandler(function(res){
+     if(!res||res.error){document.getElementById('statusLine').textContent=(res&&res.error)||'This link is no longer active.';return;}
+     document.getElementById('statusLine').textContent='Candidates submitted by '+res.firmName+'.';
+     var c=res.candidates||[];
+     if(!c.length){document.getElementById('statusBody').innerHTML='<div class="empty">No submissions yet.</div>';return;}
+     var h='<table><tr><th>Candidate</th><th>Role</th><th>Stage</th><th>Submitted</th></tr>';
+     c.forEach(function(r){h+='<tr><td>'+esc(r.name)+'</td><td>'+esc(r.reqTitle||'')+'</td><td><span class="stage">'+esc(r.stage||'')+'</span></td><td>'+esc(r.dateReceived||'')+'</td></tr>';});
+     h+='</table>';
+     document.getElementById('statusBody').innerHTML=h;
+   }).withFailureHandler(function(x){document.getElementById('statusLine').textContent='⚠️ '+x.message;}).getFirmSubmissions(TOKEN);
  }
 </script>
 </body></html>
