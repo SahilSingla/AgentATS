@@ -151,7 +151,17 @@ function getReqPlan(reqId) {
   for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === reqId.toString()) return (d[i][15] || '').toString();
   return '';
 }
-function getAppUrl() { return ScriptApp.getService().getUrl(); }
+function getAppUrl() {
+  // If a second, internal-only (domain-restricted) deployment exists for Workspace SSO,
+  // ScriptApp.getService().getUrl() returns THAT deployment’s URL when this code is running
+  // there — wrong for any link handed to a candidate or consulting firm, who can’t sign in to
+  // a Healthy18-restricted deployment at all. PUBLIC_APP_URL (Script Properties) pins these
+  // external-facing links to the public/anonymous deployment regardless of which one is serving
+  // the current request. Leave it unset for a single-deployment install — falls back to the
+  // executing deployment’s own URL, unchanged from before.
+  var pub = PropertiesService.getScriptProperties().getProperty('PUBLIC_APP_URL');
+  return pub || ScriptApp.getService().getUrl();
+}
 
 // ---------- LIVE SOURCING (Hacker News — free, official API, bot-safe) ----------
 function reqJDText_(reqId) {
