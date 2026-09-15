@@ -4237,8 +4237,9 @@ function sheetIdFromUrl_(s) {
   var m = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/.exec(s);
   return m ? m[1] : s.trim(); // also accepts a bare sheet ID
 }
-function importCandidatesFromSheet(sheetUrl, reqId, sourceLabel, colMap, gid) {
-  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
+// Core importer, no auth check — called by the guarded one-off wrapper below AND by the
+// recurring syncSourceSheets() trigger (which runs unattended, so it can't go through guard_).
+function importCandidatesFromSheetCore_(sheetUrl, reqId, sourceLabel, colMap, gid, actorName) {
   if (!colMap || !colMap.name || (!colMap.email && !colMap.phone)) return { error: 'colMap must map "name", and at least one of "email" or "phone", to header names in the source sheet.' };
   var id = sheetIdFromUrl_(sheetUrl), src;
   try { src = SpreadsheetApp.openById(id); } catch (e) { return { error: 'Could not open that sheet — make sure it is shared with the account running this ATS.' }; }
@@ -4286,8 +4287,119 @@ function importCandidatesFromSheet(sheetUrl, reqId, sourceLabel, colMap, gid) {
       imported++;
     } catch (ex) { errors.push(name + ': ' + ex.message); }
   }
-  if (imported) { logAudit_((reqId || 'IMPORT').toString(), (_g.name || _g.email) + ' imported ' + imported + ' candidate(s) from ' + label + (reqId ? ' into ' + reqId : '') + ' (' + skipped + ' skipped as duplicate/invalid).'); bustCache_(); }
+  if (imported) { logAudit_((reqId || 'IMPORT').toString(), (actorName || 'Import') + ' imported ' + imported + ' candidate(s) from ' + label + (reqId ? ' into ' + reqId : '') + ' (' + skipped + ' skipped as duplicate/invalid).'); bustCache_(); }
   return { ok: true, imported: imported, skipped: skipped, errors: errors };
+}
+function importCandidatesFromSheet(sheetUrl, reqId, sourceLabel, colMap, gid) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return _g.error; // C-1: server-side auth
+  return importCandidatesFromSheetCore_(sheetUrl, reqId, sourceLabel, colMap, gid, _g.name || _g.email);
+}
+
+// ---------- RECURRING SOURCING-SHEET SYNC (per-firm, per-requisition) ----------
+// A firm's Google Sheet can be linked once (Recruiter+, from Sourcing channels) instead of
+// re-imported by hand every time. New candidates pull in on a schedule (syncSourceSheets, an
+// opt-in time-driven trigger — same install pattern as checkInterviewSla/dailyDigest, see
+// SETUP.md). Imported rows are attributed exactly like a portal submission ("Agency: <firm>"),
+// so the firm's own "My submissions" view in Agency.html shows both together. This is
+// intentionally ONE-WAY into the ATS — nothing is ever written back into the firm's sheet
+// (that would need Edit access to a file we don't own, and breaks if they restructure it);
+// status visibility for the firm instead comes from getFirmSubmissions() below.
+function sourceSheetLinksSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('SourceSheetLinks');
+  if (!sh) { sh = ss.insertSheet('SourceSheetLinks'); sh.appendRow(['Firm Token', 'Req ID', 'Sheet URL', 'Gid', 'ColMap JSON', 'Active', 'Last Synced At', 'Last Sync Count', 'Created By', 'Created At']); sh.getRange(1, 1, 1, 10).setFontWeight('bold'); }
+  return sh;
+}
+function saveSourceSheetLink(firmToken, reqId, sheetUrl, gid, colMap) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var firm = firmFromToken_(firmToken); if (!firm) return { error: 'Pick a valid, active consulting firm first.' };
+  if (!reqId) return { error: 'Pick a requisition.' };
+  if (!colMap || !colMap.name || (!colMap.email && !colMap.phone)) return { error: 'Map at least Name + (Email or Phone).' };
+  var testId = sheetIdFromUrl_(sheetUrl);
+  try { SpreadsheetApp.openById(testId); } catch (e) { return { error: 'Could not open that sheet — make sure it is shared with the account running this ATS.' }; }
+  var sh = sourceSheetLinksSheet_(), d = sh.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][0] || '').toString() === firmToken.toString() && (d[i][1] || '').toString() === reqId.toString()) {
+      sh.getRange(i + 1, 3).setValue(sheetUrl); sh.getRange(i + 1, 4).setValue(gid || ''); sh.getRange(i + 1, 5).setValue(JSON.stringify(colMap)); sh.getRange(i + 1, 6).setValue('Yes'); // C-2 (JSON.stringify of a plain colMap object, no user HTML)
+      return { ok: true };
+    }
+  }
+  sh.appendRow(sanitizeRow_([firmToken, reqId, sheetUrl, gid || '', JSON.stringify(colMap), 'Yes', '', 0, (_g.name || _g.email), new Date()])); // C-2
+  return { ok: true };
+}
+function listSourceSheetLinks(reqId) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var d = sourceSheetLinksSheet_().getDataRange().getValues(), out = [];
+  var firms = agencySheet_().getDataRange().getValues(), firmByToken = {};
+  for (var f = 1; f < firms.length; f++) firmByToken[(firms[f][2] || '').toString()] = firms[f][0];
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][5] || '').toString().toLowerCase() === 'no') continue;
+    if (reqId && (d[i][1] || '').toString() !== reqId.toString()) continue;
+    out.push({ firmToken: d[i][0], firmName: firmByToken[(d[i][0] || '').toString()] || '(firm removed)', reqId: d[i][1], sheetUrl: d[i][2],
+      lastSyncedAt: d[i][6] ? Utilities.formatDate(new Date(d[i][6]), Session.getScriptTimeZone(), 'dd MMM HH:mm') : 'never yet', lastSyncCount: d[i][7] || 0 });
+  }
+  return out;
+}
+function removeSourceSheetLink(firmToken, reqId) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var sh = sourceSheetLinksSheet_(), d = sh.getDataRange().getValues();
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === firmToken.toString() && (d[i][1] || '').toString() === reqId.toString()) { sh.getRange(i + 1, 6).setValue('No'); return { ok: true }; }
+  return { error: 'Link not found.' };
+}
+// Time-driven trigger target (opt-in, install like checkInterviewSla — see SETUP.md). No
+// guard_(): runs unattended with no caller identity, so every write here is attributed to
+// "Sync" rather than a person. One firm's broken/restructured sheet never blocks the others —
+// each link is wrapped so a single failure just gets logged and skipped.
+function syncSourceSheets() {
+  var sh = sourceSheetLinksSheet_(), d = sh.getDataRange().getValues();
+  var firms = agencySheet_().getDataRange().getValues(), firmByToken = {};
+  for (var f = 1; f < firms.length; f++) firmByToken[(firms[f][2] || '').toString()] = firms[f][0];
+  var linksRun = 0, totalImported = 0, failed = 0;
+  for (var i = 1; i < d.length; i++) {
+    if ((d[i][5] || '').toString().toLowerCase() === 'no') continue;
+    var firmToken = (d[i][0] || '').toString(), reqId = (d[i][1] || '').toString(), sheetUrl = (d[i][2] || '').toString(), gid = (d[i][3] || '').toString();
+    var firmName = firmByToken[firmToken]; if (!firmName) continue; // firm was deleted — skip silently, link is orphaned
+    var colMap; try { colMap = JSON.parse(d[i][4] || '{}'); } catch (e) { colMap = null; }
+    if (!colMap) continue;
+    linksRun++;
+    try {
+      var r = importCandidatesFromSheetCore_(sheetUrl, reqId, 'Agency: ' + firmName, colMap, gid, 'Sync');
+      if (r && r.error) {
+        try { notifyChat_('⚠️ Sourcing-sheet sync failed for ' + firmName + ' / ' + reqId + ': ' + r.error); } catch (e2) {}
+        failed++;
+        continue;
+      }
+      totalImported += (r.imported || 0);
+      sh.getRange(i + 1, 7).setValue(new Date()); sh.getRange(i + 1, 8).setValue(r.imported || 0);
+    } catch (ex) {
+      try { notifyChat_('⚠️ Sourcing-sheet sync error for ' + firmName + ' / ' + reqId + ': ' + ex.message); } catch (e3) {}
+      failed++;
+    }
+  }
+  return 'Sourcing-sheet sync complete — ' + linksRun + ' link(s) checked, ' + totalImported + ' candidate(s) imported, ' + failed + ' failed.';
+}
+// Public (token-gated, no login) — powers the "My submissions" tab in Agency.html. Shows only
+// this firm's own candidates (matched on the same "Agency: <name>" source tag used by both the
+// portal form and the sheet sync above) — name, role, and current stage. Nothing about your
+// other candidates, other firms, feedback, comp, or anything beyond that is ever exposed here.
+function getFirmSubmissions(token) {
+  var firm = firmFromToken_(token);
+  if (!firm) return { error: 'This link is no longer active. Ask your Healthy18 contact for a new one.' };
+  var src = 'Agency: ' + firm.name;
+  var reqTitles = {};
+  try {
+    var rq = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions').getDataRange().getValues();
+    for (var j = 1; j < rq.length; j++) if (rq[j][0]) reqTitles[rq[j][0].toString()] = rq[j][1] || '';
+  } catch (e) {}
+  var d = trackerSheet_().getDataRange().getValues(), rows = [];
+  for (var i = 1; i < d.length; i++) {
+    if (!d[i][1] || (d[i][4] || '').toString() !== src) continue;
+    var reqId = (d[i][11] || '').toString();
+    rows.push({ name: d[i][1], reqId: reqId, reqTitle: reqTitles[reqId] || '', stage: d[i][6] || 'New', when: d[i][0] instanceof Date ? d[i][0] : new Date(d[i][0]) });
+  }
+  rows.sort(function (a, b) { return b.when - a.when; });
+  var tz = Session.getScriptTimeZone();
+  var out = rows.map(function (r) { return { name: r.name, reqId: r.reqId, reqTitle: r.reqTitle, stage: r.stage, dateReceived: isNaN(r.when.getTime()) ? '' : Utilities.formatDate(r.when, tz, 'dd MMM yyyy') }; });
+  return { firmName: firm.name, candidates: out };
 }
 
 // ---------- SOCIAL MEDIA JOB POSTING (Google Form) ----------
