@@ -122,27 +122,14 @@ function webhookSecretOk_(e, p) {
 // ---------- WEB APP ENTRY ----------
 function doGet(e) {
   var p = (e && e.parameter && e.parameter.page) || '';
-  // SECURITY: single deployment (Execute as: User accessing the web app, Access: Anyone) —
-  // Google's own sign-in wall means nobody reaches this code unauthenticated at all, but that
-  // wall only proves SOME Google account is signed in, not that it's an internal teammate. The
-  // internal shell (Index) and the internal sourcing tool (Source) are for people with a role
-  // in the Users sheet only; anyone else (a candidate's own Google account, a consulting-firm
-  // contact's) only ever gets apply/agency/selfschedule. Apps Script web apps can't set a real
-  // HTTP status code (doGet always returns 200), so this renders as a genuine "not found" page
-  // rather than a real 404 status — and never hints an internal app exists behind this URL.
-  var PUBLIC_PAGES_ = { apply: 1, agency: 1, selfschedule: 1 };
-  if (!PUBLIC_PAGES_[p]) {
-    var _du = currentUser_();
-    if (!_du || !_du.role) {
-      return HtmlService.createHtmlOutput('<!doctype html><title>Not found</title>' +
-        '<body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f5f1;' +
-        'color:#1a1a1a;display:flex;align-items:center;justify-content:center;height:90vh;margin:0">' +
-        '<div style="text-align:center"><h1 style="font-size:22px;margin:0 0 6px">404</h1>' +
-        '<div style="color:#777;font-size:14px">Not found.</div></div></body>')
-        .setTitle('Not found').addMetaTag('viewport', 'width=device-width, initial-scale=1');
-    }
-  }
-  var file = p === 'apply' ? 'Apply' : (p === 'source' ? 'Source' : (p === 'agency' ? 'Agency' : (p === 'selfschedule' ? 'SelfSchedule' : 'Index')));
+  // SECURITY: internal-only deployment (Execute as: User accessing the web app, Access:
+  // Anyone within Healthy18). Candidates apply via a Google Form and consulting firms submit
+  // via a shared Excel/Sheet, not through this app, so apply/source/agency/selfschedule are no
+  // longer served publicly here — Google's own domain-restricted sign-in wall means only an
+  // @healthy18.com account ever reaches this code at all, so no extra page-level gate is needed.
+  // Apply.html/Agency.html/SelfSchedule.html and their backend functions are left in the repo
+  // (unreachable via doGet) in case candidate/agency self-serve is revisited later.
+  var file = p === 'source' ? 'Source' : 'Index';
   return HtmlService.createHtmlOutputFromFile(file)
     .setTitle('Healthy18 ATS').addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
