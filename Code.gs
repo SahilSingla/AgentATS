@@ -4307,10 +4307,53 @@ function importCandidatesFromSheet(sheetUrl, reqId, sourceLabel, colMap, gid) {
 // re-imported by hand every time. New candidates pull in on a schedule (syncSourceSheets, an
 // opt-in time-driven trigger — same install pattern as checkInterviewSla/dailyDigest, see
 // SETUP.md). Imported rows are attributed exactly like a portal submission ("Agency: <firm>"),
-// so the firm's own "My submissions" view in Agency.html shows both together. This is
-// intentionally ONE-WAY into the ATS — nothing is ever written back into the firm's sheet
-// (that would need Edit access to a file we don't own, and breaks if they restructure it);
-// status visibility for the firm instead comes from getFirmSubmissions() below.
+// so the firm's own "My submissions" view in Agency.html shows both together (when that view
+// is reachable). TWO-WAY as of the internal-only pivot: since agencies no longer log into this
+// app at all, syncSourceSheets() also writes each matched candidate's current stage back into
+// an "ATS Status" column (auto-created) in the firm's own sheet, so status is visible there
+// with no login needed. Requires Edit access to the firm's sheet, not just View — a link with
+// only View access still pulls candidates in fine, but status write-back is skipped and
+// reported once via notifyChat_ rather than failing the whole sync.
+function pushCandidateStatusToSheet_(sheetUrl, gid, colMap, reqId, firmName) {
+  var id = sheetIdFromUrl_(sheetUrl), src;
+  try { src = SpreadsheetApp.openById(id); } catch (e) { return { error: 'Could not open that sheet.' }; }
+  var sh = gid ? (src.getSheets().filter(function (s) { return s.getSheetId().toString() === gid.toString(); })[0] || src.getSheets()[0]) : src.getSheets()[0];
+  var rows = sh.getDataRange().getValues();
+  if (!rows.length) return { updated: 0 };
+  var headers = rows[0].map(function (h) { return (h || '').toString().trim(); });
+  var idx = {}; Object.keys(colMap).forEach(function (k) { idx[k] = headers.indexOf(colMap[k]); });
+  var STATUS_HEADER = 'ATS Status';
+  var statusCol = headers.indexOf(STATUS_HEADER);
+  if (statusCol < 0) {
+    statusCol = headers.length;
+    try { sh.getRange(1, statusCol + 1).setValue(STATUS_HEADER); } catch (e) { return { error: 'No edit access to write status back into this sheet — pull-only for now.' }; }
+  }
+  // Scope the lookup to this firm + requisition, matching the same "Agency: <firm>" tag used
+  // by the pull side and by getFirmSubmissions() — never touches candidates from other firms.
+  var label = 'Agency: ' + firmName;
+  var tracker = trackerSheet_().getDataRange().getValues();
+  var byEmail = {}, byPhone = {};
+  for (var t = 1; t < tracker.length; t++) {
+    if ((tracker[t][4] || '').toString() !== label) continue;
+    if (reqId && (tracker[t][11] || '').toString() !== reqId.toString()) continue;
+    var em = (tracker[t][2] || '').toString().trim().toLowerCase();
+    var ph = (tracker[t][12] || '').toString().replace(/\D/g, '');
+    var stage = tracker[t][6] || 'New';
+    if (em) byEmail[em] = stage;
+    if (ph) byPhone[ph] = stage;
+  }
+  var updated = 0;
+  for (var r = 1; r < rows.length; r++) {
+    var row = rows[r];
+    var email = idx.email > -1 ? (row[idx.email] || '').toString().trim().toLowerCase() : '';
+    var phone = idx.phone > -1 ? (row[idx.phone] || '').toString().replace(/\D/g, '') : '';
+    var stage = (email && byEmail[email]) || (phone && byPhone[phone]);
+    if (!stage) continue; // not yet imported (or belongs to a different link) — leave blank
+    if ((row[statusCol] || '').toString() === stage) continue; // no change — skip the write
+    try { sh.getRange(r + 1, statusCol + 1).setValue(stage); updated++; } catch (e) { /* one bad row shouldn't stop the rest */ }
+  }
+  return { updated: updated };
+}
 function sourceSheetLinksSheet_() {
   var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('SourceSheetLinks');
   if (!sh) { sh = ss.insertSheet('SourceSheetLinks'); sh.appendRow(['Firm Token', 'Req ID', 'Sheet URL', 'Gid', 'ColMap JSON', 'Active', 'Last Synced At', 'Last Sync Count', 'Created By', 'Created At']); sh.getRange(1, 1, 1, 10).setFontWeight('bold'); }
@@ -4360,7 +4403,7 @@ function syncSourceSheets() {
   var sh = sourceSheetLinksSheet_(), d = sh.getDataRange().getValues();
   var firms = agencySheet_().getDataRange().getValues(), firmByToken = {};
   for (var f = 1; f < firms.length; f++) firmByToken[(firms[f][2] || '').toString()] = firms[f][0];
-  var linksRun = 0, totalImported = 0, failed = 0;
+  var linksRun = 0, totalImported = 0, totalStatusUpdated = 0, failed = 0;
   for (var i = 1; i < d.length; i++) {
     if ((d[i][5] || '').toString().toLowerCase() === 'no') continue;
     var firmToken = (d[i][0] || '').toString(), reqId = (d[i][1] || '').toString(), sheetUrl = (d[i][2] || '').toString(), gid = (d[i][3] || '').toString();
@@ -4377,12 +4420,25 @@ function syncSourceSheets() {
       }
       totalImported += (r.imported || 0);
       sh.getRange(i + 1, 7).setValue(new Date()); sh.getRange(i + 1, 8).setValue(r.imported || 0);
+      try {
+        var pr = pushCandidateStatusToSheet_(sheetUrl, gid, colMap, reqId, firmName);
+        if (pr && pr.error) { try { notifyChat_('⚠️ Could not write status back to ' + firmName + "'s sheet (" + reqId + '): ' + pr.error); } catch (e4) {} }
+        else totalStatusUpdated += (pr.updated || 0);
+      } catch (ex2) {
+        try { notifyChat_('⚠️ Status write-back error for ' + firmName + ' / ' + reqId + ': ' + ex2.message); } catch (e5) {}
+      }
     } catch (ex) {
       try { notifyChat_('⚠️ Sourcing-sheet sync error for ' + firmName + ' / ' + reqId + ': ' + ex.message); } catch (e3) {}
       failed++;
     }
   }
-  return 'Sourcing-sheet sync complete — ' + linksRun + ' link(s) checked, ' + totalImported + ' candidate(s) imported, ' + failed + ' failed.';
+  return 'Sourcing-sheet sync complete — ' + linksRun + ' link(s) checked, ' + totalImported + ' candidate(s) imported, ' + totalStatusUpdated + ' status update(s) written back, ' + failed + ' failed.';
+}
+// Recruiter-triggered on-demand run of the same sync (UI "Sync now" button), for testing a
+// freshly-saved link without waiting for the scheduled trigger. Same core, just guarded.
+function syncSourceSheetsNow() {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error };
+  return { ok: true, message: syncSourceSheets() };
 }
 // Public (token-gated, no login) — powers the "My submissions" tab in Agency.html. Shows only
 // this firm's own candidates (matched on the same "Agency: <name>" source tag used by both the
