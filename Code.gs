@@ -2522,9 +2522,19 @@ function currentUser_(callerArgs) {
   //   2. an identity already verified earlier in this same execution
   //   3. Google sign-in (Session) — only works for the owner / same-Workspace users.
   // The role ALWAYS comes from the Users sheet; nothing the browser sends is trusted.
-  if (callerArgs) { var t = currentUserFromToken_(extractToken_(callerArgs)); if (t) { AUTH_USER_ = t; return t; } }
+  var email = (Session.getActiveUser().getEmail() || '').toLowerCase(); // only non-empty on a deployment where the visitor is really signed in (execute as: User accessing)
+  if (callerArgs) {
+    var t = currentUserFromToken_(extractToken_(callerArgs));
+    if (t) {
+      // SECURITY: on a deployment that knows who's really signed in, a token claiming to be
+      // someone else is strong evidence their personal link was shared/leaked — Google's login
+      // can't be spoofed by the visitor. Never grant the leaked identity's role; lock the real
+      // owner's account and rotate their token instead, then fall through to Google identity.
+      if (email && email !== t.email) { handleTokenMismatch_(t, email); t = null; }
+    }
+    if (t) { AUTH_USER_ = t; return t; }
+  }
   if (AUTH_USER_) return AUTH_USER_;
-  var email = (Session.getActiveUser().getEmail() || '').toLowerCase();
   var d = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Users').getDataRange().getValues();
   for (var i = 1; i < d.length; i++)
     if (email && (d[i][0] || '').toString().toLowerCase() === email && (d[i][3] || '').toString().toLowerCase() !== 'no') {
@@ -2532,6 +2542,39 @@ function currentUser_(callerArgs) {
       return AUTH_USER_;
     }
   return { email: email, name: email, role: '' };
+}
+// Called only from currentUser_ above — never call logAudit_/currentUser_ from in here (recursion).
+// Locks the token's real owner (Users.Active -> 'No'), rotates their token so the leaked link is
+// dead even after re-enabling, writes a plain Audit row, and emails/Chat-notifies the org alert
+// address. A no-op if that account is already locked, so a repeatedly-reused leaked link only
+// ever triggers this once.
+function handleTokenMismatch_(tokenUser, sessionEmail) {
+  try {
+    var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Users');
+    if (!sh) return;
+    var locked = false;
+    withScriptLock_(function () {
+      var d = sh.getDataRange().getValues();
+      for (var i = 1; i < d.length; i++) {
+        if ((d[i][0] || '').toString().toLowerCase() !== (tokenUser.email || '').toLowerCase()) continue;
+        if ((d[i][3] || '').toString().toLowerCase() === 'no') return; // already locked — don't re-notify
+        sh.getRange(i + 1, 4).setValue('No');
+        sh.getRange(i + 1, 5).setValue(Utilities.getUuid().replace(/-/g, '').slice(0, 12)); // rotate token
+        locked = true;
+        return;
+      }
+    });
+    if (!locked) return;
+    try { auditSheet_().appendRow(sanitizeRow_([new Date(), 'SECURITY', 'system', (tokenUser.name || tokenUser.email) + '\'s personal access link was opened while signed in to Google as ' + sessionEmail + '. Account locked, token rotated.'])); } catch (e) {}
+    try {
+      var oc = orgContext_();
+      if (oc.alertEmail) GmailApp.sendEmail(oc.alertEmail, '🔒 Possible leaked access link — ' + (tokenUser.name || tokenUser.email),
+        (tokenUser.name || tokenUser.email) + '\'s personal Healthy18 ATS link was just opened by someone signed in to Google as ' + sessionEmail + ', not ' + tokenUser.email + '.\n\n' +
+        'Their account has been automatically disabled and their access link rotated (the old link no longer works).\n\n' +
+        'If this was expected (e.g. they signed in with a different Google account), re-enable them from Team & access and re-share their new link. If not, investigate how the link was shared.');
+    } catch (e) {}
+    try { notifyChat_('🔒 Locked ' + (tokenUser.name || tokenUser.email) + ' — their access link was opened as a different signed-in identity (' + sessionEmail + ').'); } catch (e) {}
+  } catch (e) {}
 }
 function allowed_(role, intent) {
   var P = {
