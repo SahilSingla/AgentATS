@@ -2702,6 +2702,34 @@ function listCandidates() {
   for (var i = 1; i < d.length; i++) if (d[i][1]) out.push({ id: (d[i][30] || ('row' + (i + 1))).toString(), label: d[i][1] + (d[i][30] ? ' (' + d[i][30] + ')' : '') });
   return out;
 }
+// Candidates list/roster view (§4.2 of the UX scope) — a proper table across the whole
+// pipeline, optionally filtered to one requisition and/or stage. Deliberately does NOT call
+// fitScore() per row (that's a live AI call, far too expensive for a roster of any size) —
+// instead it surfaces the same stack-rank score already cached by stackRankReq() for that
+// requisition, if one was run, exactly like the pipeline view already does.
+function listCandidatesTable(reqId, stage) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var ss = SpreadsheetApp.openById(SHEET_ID);
+  var d = trackerSheet_().getDataRange().getValues(), out = [];
+  var reqTitles = {};
+  try {
+    var rq = ss.getSheetByName('Requisitions').getDataRange().getValues();
+    for (var j = 1; j < rq.length; j++) if (rq[j][0]) reqTitles[rq[j][0].toString()] = rq[j][1] || '';
+  } catch (e) {}
+  var rankMaps = {};
+  for (var i = 1; i < d.length; i++) {
+    if (!d[i][1]) continue;
+    var cid = (d[i][30] || '').toString(), rid = (d[i][11] || '').toString(), st = (d[i][6] || 'New').toString();
+    if (reqId && rid !== reqId) continue;
+    if (stage && st !== stage) continue;
+    if (!(rid in rankMaps)) { try { rankMaps[rid] = cacheGet_('rankres_' + rid) || {}; } catch (e) { rankMaps[rid] = {}; } }
+    var rk = rankMaps[rid][cid];
+    out.push({ candId: cid, name: d[i][1], reqId: rid, reqTitle: reqTitles[rid] || '', stage: st,
+      title: d[i][18] || '', company: d[i][17] || '', exp: d[i][19] || '', skills: d[i][20] || '',
+      rank: rk ? rk.m : null });
+  }
+  return out;
+}
 function saveRequisition(o) {
   var u = currentUser_(arguments);
   if (!allowed_(u.role, 'create_requisition')) return '🔒 You can\'t create requisitions.';
