@@ -122,24 +122,25 @@ function webhookSecretOk_(e, p) {
 // ---------- WEB APP ENTRY ----------
 function doGet(e) {
   var p = (e && e.parameter && e.parameter.page) || '';
-  // SECURITY: once a second, domain-restricted deployment exists (PUBLIC_APP_URL set — see
-  // getAppUrl()), the public/anonymous deployment must never serve the internal app shell
-  // (Index) or the internal sourcing tool (Source). guard_() blocks the actions those pages
-  // take, but a few reads are intentionally ungated for signed-in internal users (e.g.
-  // listRequisitions()) and would otherwise be readable by anyone who finds this URL, with no
-  // login at all. Only apply/agency/selfschedule are meant to be reachable here. Apps Script
-  // web apps can't set a real HTTP status code (doGet always returns 200), so this renders as
-  // a genuine "not found" page rather than a real 404 status — and never hints an internal
-  // app exists behind this URL, unlike silently falling back to the apply page would.
+  // SECURITY: single deployment (Execute as: User accessing the web app, Access: Anyone) —
+  // Google's own sign-in wall means nobody reaches this code unauthenticated at all, but that
+  // wall only proves SOME Google account is signed in, not that it's an internal teammate. The
+  // internal shell (Index) and the internal sourcing tool (Source) are for people with a role
+  // in the Users sheet only; anyone else (a candidate's own Google account, a consulting-firm
+  // contact's) only ever gets apply/agency/selfschedule. Apps Script web apps can't set a real
+  // HTTP status code (doGet always returns 200), so this renders as a genuine "not found" page
+  // rather than a real 404 status — and never hints an internal app exists behind this URL.
   var PUBLIC_PAGES_ = { apply: 1, agency: 1, selfschedule: 1 };
-  var pubUrl_ = PropertiesService.getScriptProperties().getProperty('PUBLIC_APP_URL');
-  if (pubUrl_ && ScriptApp.getService().getUrl() === pubUrl_ && !PUBLIC_PAGES_[p]) {
-    return HtmlService.createHtmlOutput('<!doctype html><title>Not found</title>' +
-      '<body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f5f1;' +
-      'color:#1a1a1a;display:flex;align-items:center;justify-content:center;height:90vh;margin:0">' +
-      '<div style="text-align:center"><h1 style="font-size:22px;margin:0 0 6px">404</h1>' +
-      '<div style="color:#777;font-size:14px">Not found.</div></div></body>')
-      .setTitle('Not found').addMetaTag('viewport', 'width=device-width, initial-scale=1');
+  if (!PUBLIC_PAGES_[p]) {
+    var _du = currentUser_();
+    if (!_du || !_du.role) {
+      return HtmlService.createHtmlOutput('<!doctype html><title>Not found</title>' +
+        '<body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f6f5f1;' +
+        'color:#1a1a1a;display:flex;align-items:center;justify-content:center;height:90vh;margin:0">' +
+        '<div style="text-align:center"><h1 style="font-size:22px;margin:0 0 6px">404</h1>' +
+        '<div style="color:#777;font-size:14px">Not found.</div></div></body>')
+        .setTitle('Not found').addMetaTag('viewport', 'width=device-width, initial-scale=1');
+    }
   }
   var file = p === 'apply' ? 'Apply' : (p === 'source' ? 'Source' : (p === 'agency' ? 'Agency' : (p === 'selfschedule' ? 'SelfSchedule' : 'Index')));
   return HtmlService.createHtmlOutputFromFile(file)
@@ -170,17 +171,7 @@ function getReqPlan(reqId) {
   for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === reqId.toString()) return (d[i][15] || '').toString();
   return '';
 }
-function getAppUrl() {
-  // If a second, internal-only (domain-restricted) deployment exists for Workspace SSO,
-  // ScriptApp.getService().getUrl() returns THAT deployment’s URL when this code is running
-  // there — wrong for any link handed to a candidate or consulting firm, who can’t sign in to
-  // a Healthy18-restricted deployment at all. PUBLIC_APP_URL (Script Properties) pins these
-  // external-facing links to the public/anonymous deployment regardless of which one is serving
-  // the current request. Leave it unset for a single-deployment install — falls back to the
-  // executing deployment’s own URL, unchanged from before.
-  var pub = PropertiesService.getScriptProperties().getProperty('PUBLIC_APP_URL');
-  return pub || ScriptApp.getService().getUrl();
-}
+function getAppUrl() { return ScriptApp.getService().getUrl(); }
 
 // ---------- LIVE SOURCING (Hacker News — free, official API, bot-safe) ----------
 function reqJDText_(reqId) {
