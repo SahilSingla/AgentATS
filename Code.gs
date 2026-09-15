@@ -1782,6 +1782,64 @@ function pipelineInsights() {
   aging.sort(function (a, b) { return b.days - a.days; });
   return { active: active, byStage: byStage, aging: aging.slice(0, 25), metrics: getStageMetrics() };
 }
+// Aggregates everything the redesigned Dashboard (openToday) needs into one round trip —
+// same "reads happen on demand, no polling sync" model as the rest of the app. Reuses only
+// already-computed data (pipelineInsights, getReqBoard, getPendingRoundDecisions,
+// listPendingOfferApprovals); the two additions below (interviews-this-week count, one
+// most-recently-moved sample candidate per stage) are trivial reads of sheets already used
+// elsewhere, matching the pattern already used for the funnel/board views.
+function getDashboardSummary(scopeEmail) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  if (_g.role === 'HiringManager') scopeEmail = _g.email || scopeEmail; // M-10: scope derived from verified identity
+  var _ck = 'dashsum_' + cacheVer_() + '_' + (scopeEmail || ''); var _hit = cacheGet_(_ck); if (_hit) return _hit;
+
+  var pi = {}; try { pi = pipelineInsights(); } catch (e) {}
+  var board = []; try { board = getReqBoard(scopeEmail) || []; } catch (e) {}
+  if (board && board.error) board = [];
+  var openReqs = board.filter(function (r) { return (r.status || '').toLowerCase() === 'open'; });
+
+  // Admin-only queues (Phase 8) — a non-Admin sees an empty "waiting on you" card rather than an error.
+  var waitingRounds = []; try { var wr = getPendingRoundDecisions(); if (wr && !wr.error) waitingRounds = wr; } catch (e) {}
+  var waitingOffers = []; try { var wo = listPendingOfferApprovals(); if (wo && !wo.error) waitingOffers = wo; } catch (e) {}
+
+  // Interviews scheduled this calendar week (Sun-Sat) — a plain count, not a fabricated metric.
+  var ivWeek = 0;
+  try {
+    var ish = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Interviews');
+    if (ish) {
+      var ivd = ish.getDataRange().getValues(), now = new Date();
+      var start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0, 0, 0, 0);
+      var end = new Date(start); end.setDate(start.getDate() + 7);
+      for (var i = 1; i < ivd.length; i++) { var w = ivd[i][6]; if (w instanceof Date && w >= start && w < end) ivWeek++; }
+    }
+  } catch (e) {}
+
+  // One most-recently-moved candidate per stage, for the funnel row's "sample candidate" card.
+  var sampleByStage = {};
+  try {
+    var tr = trackerSheet_().getDataRange().getValues();
+    var hd = stageHistSheet_().getDataRange().getValues(), lastChange = {};
+    for (var h = 1; h < hd.length; h++) { var c = (hd[h][1] || '').toString(); if (c && hd[h][0] instanceof Date) lastChange[c] = hd[h][0]; }
+    var best = {};
+    for (var t = 1; t < tr.length; t++) {
+      if (!tr[t][1]) continue;
+      var cid = (tr[t][30] || '').toString(), stage = (tr[t][6] || 'New').toString(), rid = (tr[t][11] || '').toString();
+      var since = lastChange[cid] || tr[t][0]; if (!(since instanceof Date)) continue;
+      if (!best[stage] || since > best[stage].when) best[stage] = { when: since, candId: cid, name: tr[t][1], reqId: rid };
+    }
+    Object.keys(best).forEach(function (s) { sampleByStage[s] = { candId: best[s].candId, name: best[s].name, reqId: best[s].reqId }; });
+  } catch (e) {}
+
+  var _res = {
+    active: pi.active || 0, byStage: pi.byStage || {}, sampleByStage: sampleByStage,
+    avgTimeToHire: (pi.metrics && pi.metrics.avgTimeToHire != null) ? pi.metrics.avgTimeToHire : null,
+    openReqs: openReqs.slice(0, 6), openReqCount: openReqs.length, interviewsThisWeek: ivWeek,
+    waitingRounds: waitingRounds.slice(0, 6), waitingOffers: waitingOffers.slice(0, 6),
+    waitingCount: waitingRounds.length + waitingOffers.length, isAdmin: _g.role === 'Admin'
+  };
+  cachePut_(_ck, _res, 60); return _res;
+}
+
 function notebookPack(reqId) {
   var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
   var s = null, cal = null;

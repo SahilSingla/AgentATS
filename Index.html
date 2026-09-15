@@ -147,6 +147,39 @@
  .mainCol header{flex:none}
  .mainCol #chat{flex:1;overflow-y:auto}
  @media(max-width:900px){.siderail{width:64px;padding:16px 8px}.rail-brand-text,.rail-label,.rail-link span{display:none}.rail-brand{justify-content:center;padding:0 0 16px}.rail-link{justify-content:center;padding:0}}
+  /* ===== Dashboard (redesigned openToday) ===== */
+  .dhero{background:linear-gradient(135deg,var(--violet-50),var(--surface) 65%);border:1px solid var(--violet-100);border-radius:16px;padding:20px 22px;margin-bottom:18px;position:relative;overflow:hidden}
+  .dhero::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--violet),var(--violet-700))}
+  .dhero h4{font-family:var(--disp);font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px;color:var(--ink)}
+  .dhero .sub2{color:var(--n600);font-size:12.5px}
+  .live-chip{display:inline-flex;align-items:center;gap:6px;background:var(--green-50);color:var(--green-700);border:1px solid var(--green-100);border-radius:20px;padding:3px 11px 3px 9px;font-size:11.5px;font-weight:700;margin-top:10px}
+  .live-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .kpi{background:var(--surface);border:1px solid var(--n200);border-radius:14px;padding:14px 16px;box-shadow:0 4px 6px -1px rgba(20,19,24,.05),0 2px 4px -2px rgba(20,19,24,.04)}
+  .kpi .kn{font-family:var(--disp);font-size:26px;font-weight:700;color:var(--ink);line-height:1.1}
+  .kpi .kl{font-size:11.5px;color:var(--n500);font-weight:600;margin-top:3px}
+  .dsectlabel{font-size:11px;font-weight:700;color:var(--n500);text-transform:uppercase;letter-spacing:.5px;margin:2px 0 9px}
+  .funnel-row{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;margin-bottom:18px}
+  .stage-card{flex:0 0 152px;background:var(--surface);border:1px solid var(--n200);border-radius:14px;padding:12px 13px}
+  .stage-card .sl{font-size:10.5px;color:var(--n500);font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stage-card .sn{font-family:var(--disp);font-size:21px;font-weight:700;color:var(--ink)}
+  .stage-card .ssample{font-size:11px;color:var(--n600);margin-top:8px;border-top:1px solid var(--n100);padding-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+  .stage-card .ssample:hover{color:var(--violet-700)}
+  .dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-bottom:18px}
+  .dcard{background:var(--surface);border:1px solid var(--n200);border-radius:16px;padding:16px 18px}
+  .dcard h5{font-family:var(--disp);font-size:14px;font-weight:700;margin:0 0 12px;color:var(--ink);display:flex;justify-content:space-between;align-items:center}
+  .reqrow{margin-bottom:11px;cursor:pointer}
+  .reqrow:last-child{margin-bottom:0}
+  .reqrow .rr-top{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;margin-bottom:5px}
+  .reqrow .rr-top b{color:var(--ink)}
+  .pbar{background:var(--n100);border-radius:6px;height:7px;overflow:hidden}
+  .pbar>div{height:7px;background:var(--violet);border-radius:6px}
+  .waitrow{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--n100);cursor:pointer}
+  .waitrow:last-child{border-bottom:none;padding-bottom:0}
+  .waitrow:hover .wname{color:var(--violet-700)}
+  .qa-row{display:flex;gap:10px;flex-wrap:wrap}
+  .qa-row button{flex:1;min-width:150px}
+  @media(max-width:760px){.kpi-row{grid-template-columns:1fr 1fr}.dash-grid{grid-template-columns:1fr}}
 </style></head>
 <body>
  <div class="appshell">
@@ -158,20 +191,19 @@
    <div class="rail-nav">
     <div class="rail-section">
      <div class="rail-label">Recruiting Core</div>
-     <button class="rail-link active" onclick="navGo(this,openToday)">🏠 <span>Today</span></button>
+     <button class="rail-link active" onclick="navGo(this,openToday)">📊 <span>Dashboard</span></button>
      <button class="rail-link" onclick="navGo(this,openBoard)">📋 <span>Requisitions</span></button>
      <button class="rail-link" onclick="navGo(this,openTalentUpload)">🌱 <span>Talent Pool</span></button>
      <button class="rail-link" onclick="navGo(this,openScheduleTop)">📅 <span>Schedule</span></button>
     </div>
     <div class="rail-section">
      <div class="rail-label">Intelligence &amp; Automation</div>
-     <button class="rail-link" onclick="navGo(this,openDash)">📊 <span>Dashboard</span></button>
      <button class="rail-link" onclick="navGo(this,openAnalytics)">📈 <span>Analytics</span></button>
      <button class="rail-link" onclick="navGo(this,openInsights)">🔔 <span>Insights &amp; Alerts</span></button>
     </div>
    </div>
    <div class="rail-spacer"></div>
-   <div class="rail-verchip">v103 · Dizno</div>
+   <div class="rail-verchip">v104 · Dizno</div>
   </aside>
   <div class="mainCol">
    <header>
@@ -269,20 +301,23 @@ function copyLink(btn,link){try{navigator.clipboard.writeText(link);btn.textCont
 function openBranding(){panel.innerHTML='<h3>🎨 Branding & identity</h3><div class="sub2" style="margin-bottom:12px">Personalise the app for your client — shows in the header and on reports.</div><div id="brbody">Loading…</div><div class="acts"><button class="cancel" onclick="closeModal()">Cancel</button><button class="save" onclick="saveBranding()">Save</button></div>';overlay.style.display="flex";GSRUN().withSuccessHandler(function(o){o=o||{};var co=o.company||"";document.getElementById("brbody").innerHTML='<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px"><div id="brLogoPrev" class="logo" style="width:56px;height:56px;font-size:19px;border-radius:13px">'+_ini(co||"MC")+'</div><div class="fld" style="flex:1;margin:0"><label>Company name</label><input name="brCo"></div></div><div class="fld"><label>Company logo</label><input type="file" id="brLogo" accept="image/*" onchange="brUpload()"><div id="brLogoStatus" class="sub2">PNG/JPG · appears top-left. Square or wide both work.</div></div><div class="two">'+fld("Your name","brName")+fld("Your designation","brTitle")+'</div>';var sv=function(n,v){var el=panel.querySelector('[name="'+n+'"]');if(el)el.value=v||"";};sv("brCo",co);sv("brName",o.recruiterName);sv("brTitle",o.recruiterTitle);if(o.logoUrl){var p=document.getElementById("brLogoPrev");if(p)p.outerHTML='<img id="brLogoPrev" class="logo" style="width:56px;height:56px;border-radius:13px" src="'+o.logoUrl+'">';}}).withFailureHandler(function(x){document.getElementById("brbody").innerHTML="⚠️ "+x.message;}).getOrgContext();}
 function brUpload(){var f=document.getElementById("brLogo").files[0];if(!f)return;var st=document.getElementById("brLogoStatus");st.textContent="Uploading…";var rd=new FileReader();rd.onload=function(){GSRUN().withSuccessHandler(function(r){if(r&&r.error){st.textContent="⚠️ "+r.error;return;}st.textContent="✅ Logo saved.";var p=document.getElementById("brLogoPrev");if(p&&r.url){if(p.tagName==="IMG")p.src=r.url;else p.outerHTML='<img id="brLogoPrev" class="logo" style="width:56px;height:56px;border-radius:13px" src="'+r.url+'">';}loadBrand();}).withFailureHandler(function(x){st.textContent="⚠️ "+x.message;}).saveLogo(rd.result.split(",")[1],f.name,f.type);};rd.readAsDataURL(f);}
 function saveBranding(){var v=collect();var th=add("saving branding…","bot think");GSRUN().withSuccessHandler(function(){th.remove();loadBrand();closeModal();add("✅ Branding saved.","bot");}).withFailureHandler(function(x){th.remove();warn("⚠️ "+x.message);}).setOrgContext({company:v.brCo||"",recruiterName:v.brName||"",recruiterTitle:v.brTitle||""});}
-function openToday(){panel.innerHTML='<h3>🏠 Today</h3><div class="sub2" style="margin-bottom:8px">What needs you right now — newest first, most urgent on top.</div><div id="todayBody">Loading your day…</div><div class="acts"><button class="cancel" onclick="overlay.style.display=\'none\'">Close</button></div>';overlay.style.display='flex';gcall('getToday',[_todayScope()],renderToday,function(x){var e=document.getElementById('todayBody');if(e)e.innerHTML='⚠️ '+esc2(x.message);},'today_'+_todayScope());}
-function renderToday(t){var el=document.getElementById('todayBody');if(!el)return;
- function cand(c){return '<div class="sr" onclick="overlay.style.display=\'none\';_reqId=\''+c.reqId+'\';openCandidate(\''+c.candId+'\')"><b>'+esc2(maskName(c.name,c.candId))+'</b> '+stChip(c.stage)+(c.days?' <span class="sub2" style="color:#9a3b3b">'+c.days+'d in stage'+(c.sla?' · limit '+c.sla+'d':'')+'</span>':'')+(c.reqId?' <span class="sub2">· '+esc2(c.reqId)+'</span>':'')+'</div>';}
- function req(r){return '<div class="sr" onclick="overlay.style.display=\'none\';openPipeline(\''+r.reqId+'\')"><b>'+esc2(r.reqId)+'</b> '+esc2(r.title)+' <span class="sub2" style="color:#b06a00">needs '+esc2(r.needs.join(' + '))+'</span></div>';}
- function sec(icon,title,arr,fn,empty){var n=arr?arr.length:0;return '<div class="sec" style="display:flex;justify-content:space-between;align-items:center;text-transform:none;font-size:12.5px;color:#2a2a2a;font-weight:700"><span>'+icon+' '+title+'</span><span class="pill">'+n+'</span></div>'+(n?arr.map(fn).join(''):'<div class="sub2" style="color:#aaa;padding:0 0 4px">'+empty+'</div>');}
- var total=(t.newApps.length+t.awaitingFb.length+t.debriefs.length+t.stuck.length+t.offers.length+t.reqsNeed.length);
- var head=total?'<div class="bb" style="background:#f0f7f2">You have <b>'+total+'</b> item'+(total>1?'s':'')+' that may need attention.</div>':'<div class="bb" style="background:#f0f7f2">✨ All clear — nothing waiting on you right now.</div>';
- el.innerHTML=head
-  +sec('🆕','New applicants (last 7 days)',t.newApps,cand,'No new applicants')
-  +sec('📝','Awaiting interview feedback',t.awaitingFb,cand,'No feedback outstanding')
-  +sec('🧑‍⚖️','Debriefs to run',t.debriefs,cand,'No debriefs pending')
-  +sec('🎁','Offers in play',t.offers,cand,'No open offers')
-  +sec('⏳','Stuck 10+ days',t.stuck,cand,'Nothing stalled 🎉')
-  +sec('🛠️','Requisitions to set up',t.reqsNeed,req,'All open reqs are set up');}
+function openToday(){panel.innerHTML='<h3>📊 Dashboard</h3><div id="dashBody" class="dash-wrap">Loading your dashboard…</div><div class="acts"><button class="cancel" onclick="overlay.style.display=\'none\'">Close</button></div>';overlay.style.display='flex';gcall('getDashboardSummary',[_todayScope()],renderDashboard,function(x){var e=document.getElementById('dashBody');if(e)e.innerHTML='⚠️ '+esc2(x.message);},'dashsum_'+_todayScope());}
+function renderDashboard(d){var el=document.getElementById('dashBody');if(!el)return;
+ var order=['New','Screened','Shortlist','Interview','Interview Scheduled','Selected','Offered','Onboarded'];
+ var maxN=1;order.forEach(function(s){if((d.byStage[s]||0)>maxN)maxN=d.byStage[s];});
+ var hero='<div class="dhero"><h4>Hiring Pipeline &amp; Talent Operations</h4><div class="sub2">'+(d.waitingCount?('<b>'+d.waitingCount+'</b> item'+(d.waitingCount>1?'s':'')+' waiting on your decision below.'):'All caught up — nothing waiting on you right now.')+'</div><div class="live-chip"><span class="dot"></span>Live — reads happen on demand</div></div>';
+ var kpis='<div class="kpi-row"><div class="kpi"><div class="kn">'+d.active+'</div><div class="kl">Active candidates</div></div><div class="kpi"><div class="kn">'+d.openReqCount+'</div><div class="kl">Open requisitions</div></div><div class="kpi"><div class="kn">'+d.interviewsThisWeek+'</div><div class="kl">Interviews this week</div></div><div class="kpi"><div class="kn">'+(d.avgTimeToHire!=null?d.avgTimeToHire+'d':'—')+'</div><div class="kl">Avg time to hire</div></div></div>';
+ var funnel='<div class="dsectlabel">Recruitment funnel</div><div class="funnel-row">'+order.map(function(s){var n=d.byStage[s]||0,samp=d.sampleByStage[s];return '<div class="stage-card"><div class="sl">'+esc2(s)+'</div><div class="sn">'+n+'</div>'+(samp?('<div class="ssample" onclick="overlay.style.display=\'none\';_reqId=\''+esc2(samp.reqId)+'\';openCandidate(\''+esc2(samp.candId)+'\')">'+esc2(maskName(samp.name,samp.candId))+'</div>'):'<div class="ssample" style="color:#bbb">—</div>')+'</div>';}).join('')+'</div>';
+ var reqsHtml=d.openReqs.length?d.openReqs.map(function(r){var pct=Math.max(4,Math.round((r.count||0)/maxN*100));return '<div class="reqrow" onclick="overlay.style.display=\'none\';openPipeline(\''+esc2(r.id)+'\')"><div class="rr-top"><span><b>'+esc2(r.id)+'</b> '+esc2(r.title||'')+'</span><span class="sub2">'+(r.count||0)+' in pipeline</span></div><div class="pbar"><div style="width:'+pct+'%"></div></div></div>';}).join(''):'<p class="sub2" style="color:#aaa">No open requisitions.</p>';
+ var reqCard='<div class="dcard"><h5>Active Requisitions <span class="pill">'+d.openReqCount+'</span></h5>'+reqsHtml+'</div>';
+ var waitRows=[].concat(
+  (d.waitingRounds||[]).map(function(w){return {label:esc2(maskName(w.candName,w.candId))+' — round decision',sub:esc2(w.stage||'')+(w.recommendation?' · '+esc2(w.recommendation):''),go:'overlay.style.display=\'none\';_reqId=\''+esc2(w.reqId)+'\';openCandidate(\''+esc2(w.candId)+'\')'};}),
+  (d.waitingOffers||[]).map(function(w){return {label:esc2(maskName(w.candName,w.candId))+' — offer approval',sub:esc2(w.reqId||'')+(w.ctc?' · '+money(w.ctc):''),go:'overlay.style.display=\'none\';openOfferPanel(\''+esc2(w.candId)+'\')'};})
+ );
+ var waitHtml=d.isAdmin?(waitRows.length?waitRows.map(function(w){return '<div class="waitrow" onclick="'+w.go+'"><span class="wname">'+w.label+'</span><span class="sub2">'+w.sub+'</span></div>';}).join(''):'<p class="sub2" style="color:#aaa">✨ Nothing waiting on you.</p>'):'<p class="sub2" style="color:#aaa">Visible to Admins.</p>';
+ var waitCard='<div class="dcard"><h5>Waiting on you <span class="pill">'+d.waitingCount+'</span></h5>'+waitHtml+'</div>';
+ var quick='<div class="dsectlabel">Quick actions</div><div class="qa-row"><button class="save" onclick="overlay.style.display=\'none\';openReq()">＋ New requisition</button> <button class="cancel" onclick="overlay.style.display=\'none\';openTalentUpload()">🌱 Add candidates</button> <button class="cancel" onclick="openBoard()">📋 View requisitions</button></div>';
+ el.innerHTML=hero+kpis+funnel+'<div class="dash-grid">'+reqCard+waitCard+'</div>'+quick;}
 function openCalibration(reqId){_calReq=reqId;window._formDirty=false;panel.innerHTML='<div class="nav"><a onclick="openPipeline(\''+reqId+'\')">← Pipeline</a></div><h3>🎯 Calibration — '+reqId+'</h3><div class="sub2" style="margin-bottom:8px">Capture what the hiring manager really wants. Upload case studies, drop a voice note, or paste notes — AI turns it into must-haves you can screen against.</div><div id="calbody">Loading…</div><div class="acts"><button class="cancel" onclick="openPipeline(\''+reqId+'\')">Back</button></div>';overlay.style.display='flex';loadCal();}
 function loadCal(){GSRUN().withSuccessHandler(renderCalPanel).withFailureHandler(function(x){document.getElementById('calbody').innerHTML='⚠️ '+x.message;}).getCalibration(_calReq);}
 function renderCalPanel(d){var b=d.brief;var briefHtml=(b&&((b.must_haves&&b.must_haves.length)||b.summary))?('<div class="bb" style="background:#fff7ec"><b>✅ Must-haves:</b> '+(esc2((b.must_haves||[]).join(', '))||'—')+'<br><b>➕ Nice-to-haves:</b> '+(esc2((b.nice_to_haves||[]).join(', '))||'—')+'<br><b>🚩 Red flags:</b> '+(esc2((b.red_flags||[]).join(', '))||'—')+(b.summary?'<br><br>'+esc2(b.summary):'')+'</div>'):'<p style="color:#777">No calibration brief yet — add a voice note or notes below.</p>';var filesHtml=(d.files&&d.files.length)?d.files.map(function(f){return '<div class="sub2">📎 <a href="'+f.url+'" target="_blank">'+esc2(f.name)+'</a> · '+esc2(f.kind)+'</div>';}).join(''):'<p style="color:#777">No files yet.</p>';var voice=d.voiceUrl?'<div class="sub2">🎙️ <a href="'+d.voiceUrl+'" target="_blank">Saved voice note</a></div>':'';var trans=d.transcript?'<details style="margin-top:8px"><summary class="sub2" style="cursor:pointer">View transcript / notes</summary><div class="bb" style="white-space:pre-wrap">'+esc2(d.transcript)+'</div></details>':'';document.getElementById('calbody').innerHTML=briefHtml+'<h4>Case studies / take-home / references</h4>'+filesHtml+'<div class="two"><div class="fld"><label>Add file</label><input type="file" id="calFile" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.png,.jpg,.jpeg" onchange="calUploadFile()"></div><div class="fld"><label>Type</label><select id="calKind"><option>case-study</option><option>take-home</option><option>reference</option><option>scorecard</option></select></div></div><div id="calFileStatus" class="sub2"></div><h4>Hiring-manager voice note</h4>'+voice+'<div class="fld"><button class="save" id="recBtn" onclick="toggleRec()">🎙️ Record voice note</button> <span id="recStatus" class="sub2"></span><div class="sub2" style="margin-top:4px">Record live — recruiter or hiring manager speaks; AI converts speech to text (any language) and extracts must-haves.</div></div><div class="fld"><label>…or upload an audio file (mp3, m4a, wav)</label><input type="file" id="calVoice" accept="audio/*" onchange="calUploadVoice()"><div id="calVoiceStatus" class="sub2"></div></div><h4>Recruiter notes</h4><div class="fld"><textarea id="calNotes" rows="3" placeholder="Your own context — what the hiring manager said offline, comp flexibility, scheduling constraints, etc.">'+esc2(d.notes||'')+'</textarea></div><button class="save" onclick="calSaveNotes()">Save notes</button> <span id="calNotesStatus" class="sub2"></span><h4>Or paste calibration notes</h4><div class="fld"><textarea id="calText" rows="3" placeholder="e.g. Must have led a team and shipped payments at scale; nice to have fintech; red flag job-hopping under 1 year"></textarea></div><button class="save" onclick="calSaveText()">Extract must-haves</button>'+trans;}
