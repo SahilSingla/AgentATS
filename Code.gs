@@ -51,7 +51,7 @@ function currentUserFromToken_(token) {
 }
 
 // Role ladder. Unknown/blank roles rank 0 = no access.
-function roleRank_(role) { return { Interviewer: 1, HiringManager: 2, Recruiter: 3, Admin: 4 }[role] || 0; }
+function roleRank_(role) { return { Interviewer: 1, HiringManager: 2, RecruitmentCoordinator: 2, Recruiter: 3, Admin: 4 }[role] || 0; }
 
 // C-1: central authorization check. Returns the verified user, or { error: '...' }.
 // minRole: 'Interviewer' (any active team member) < 'HiringManager' < 'Recruiter' < 'Admin'.
@@ -2605,6 +2605,43 @@ function removeTeamMember(email) {
   return teamAccess();
 }
 
+// ---------- RECRUITMENT COORDINATOR: per-requisition assignment ----------
+// A Coordinator only sees/acts on requisitions explicitly assigned here (Recruiter+ manages
+// the assignment list from Team & access). Same role tier as HiringManager (rank 2), but
+// scoped by an assignment list instead of an "owner" column.
+function coordinatorReqsSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('CoordinatorReqs');
+  if (!sh) { sh = ss.insertSheet('CoordinatorReqs'); sh.appendRow(['Email', 'Req ID', 'Added At']); sh.getRange(1, 1, 1, 3).setFontWeight('bold'); }
+  return sh;
+}
+function getCoordinatorReqIds_(email) {
+  var el = (email || '').toString().toLowerCase(); if (!el) return [];
+  var d = coordinatorReqsSheet_().getDataRange().getValues(), out = [];
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString().toLowerCase() === el && d[i][1]) out.push(d[i][1].toString());
+  return out;
+}
+// Recruiter+ only: replaces a coordinator's FULL assignment set with reqIds (array of strings).
+function setCoordinatorReqs(email, reqIds) {
+  var _g = guard_(arguments, 'Recruiter'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var el = (email || '').toString().toLowerCase(); if (!el) return { error: 'Email is required.' };
+  var sh = coordinatorReqsSheet_(), d = sh.getDataRange().getValues();
+  withScriptLock_(function () {
+    for (var i = d.length - 1; i >= 1; i--) if ((d[i][0] || '').toString().toLowerCase() === el) sh.deleteRow(i + 1);
+    var now = new Date();
+    (reqIds || []).forEach(function (rid) { if (rid) sh.appendRow(sanitizeRow_([el, rid.toString(), now])); }); // C-2
+  });
+  bustCache_();
+  return { ok: true, reqIds: getCoordinatorReqIds_(el) };
+}
+// Self-restricted read: a Coordinator may read only their own assignment list; Recruiter+ may
+// read anyone's (e.g. to pre-populate the assignment UI for an existing coordinator).
+function getCoordinatorReqs(email) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var el = (email || _g.email || '').toString().toLowerCase();
+  if (roleRank_(_g.role) < roleRank_('Recruiter') && el !== (_g.email || '').toLowerCase()) return { error: '🔒 You can only view your own assignments.' };
+  return { email: el, reqIds: getCoordinatorReqIds_(el) };
+}
+
 // ---------- CANDIDATE IDS ----------
 // ---------- CANDIDATE IDENTITY vs APPLICATION (M-12) ----------
 // Candidate ID (col 31) identifies the PERSON and is reused across every role they ever
@@ -2692,8 +2729,14 @@ function nextCandidateId_() {
 function listRequisitions() {
   var sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('Requisitions');
   if (!sh) return [];
+  var _u = currentUser_(arguments), scopeIds = null;
+  if (_u && _u.role === 'RecruitmentCoordinator') scopeIds = getCoordinatorReqIds_(_u.email);
   var d = sh.getDataRange().getValues(), out = [];
-  for (var i = 1; i < d.length; i++) if (d[i][0]) out.push({ id: d[i][0], label: d[i][0] + ' — ' + (d[i][1] || '') });
+  for (var i = 1; i < d.length; i++) {
+    if (!d[i][0]) continue;
+    if (scopeIds && scopeIds.indexOf(d[i][0].toString()) < 0) continue;
+    out.push({ id: d[i][0], label: d[i][0] + ' — ' + (d[i][1] || '') });
+  }
   return out;
 }
 function listCandidates() {
@@ -2709,6 +2752,7 @@ function listCandidates() {
 // requisition, if one was run, exactly like the pipeline view already does.
 function listCandidatesTable(reqId, stage) {
   var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var _scopeIds = (_g.role === 'RecruitmentCoordinator') ? getCoordinatorReqIds_(_g.email) : null;
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var d = trackerSheet_().getDataRange().getValues(), out = [];
   var reqTitles = {};
@@ -2722,6 +2766,7 @@ function listCandidatesTable(reqId, stage) {
     var cid = (d[i][30] || '').toString(), rid = (d[i][11] || '').toString(), st = (d[i][6] || 'New').toString();
     if (reqId && rid !== reqId) continue;
     if (stage && st !== stage) continue;
+    if (_scopeIds && _scopeIds.indexOf(rid) < 0) continue;
     if (!(rid in rankMaps)) { try { rankMaps[rid] = cacheGet_('rankres_' + rid) || {}; } catch (e) { rankMaps[rid] = {}; } }
     var rk = rankMaps[rid][cid];
     out.push({ candId: cid, name: d[i][1], reqId: rid, reqTitle: reqTitles[rid] || '', stage: st,
@@ -2914,8 +2959,10 @@ function getReqBoard(scopeEmail) {
   // M-10 FIX: HM scoping is enforced SERVER-side from the verified identity. Previously the
   // client decided whether to send an email — any HM could call getReqBoard('') and see all reqs.
   if (_g.role === 'HiringManager') scopeEmail = _g.email || scopeEmail;
-  var _ck = 'board_' + cacheVer_() + '_' + (scopeEmail || ''); var _hit = cacheGet_(_ck); if (_hit) return _hit;
-  if (typeof SB_ON_ === 'function' && SB_ON_()) { try { var _sb = sbGetReqBoard_(scopeEmail); if (_sb) { cachePut_(_ck, _sb, 120); return _sb; } } catch (e) {} }
+  var _coordIds = (_g.role === 'RecruitmentCoordinator') ? getCoordinatorReqIds_(_g.email) : null;
+  var _ck = 'board_' + cacheVer_() + '_' + (scopeEmail || '') + (_coordIds ? ('_c' + _g.email) : '');
+  var _hit = cacheGet_(_ck); if (_hit) return _hit;
+  if (!_coordIds && typeof SB_ON_ === 'function' && SB_ON_()) { try { var _sb = sbGetReqBoard_(scopeEmail); if (_sb) { cachePut_(_ck, _sb, 120); return _sb; } } catch (e) {} }
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var rq = ss.getSheetByName('Requisitions'), reqs = rq ? rq.getDataRange().getValues() : [];
   var tr = ss.getSheetByName('Tracker').getDataRange().getValues(), counts = {};
@@ -2924,6 +2971,7 @@ function getReqBoard(scopeEmail) {
   for (var j = 1; j < reqs.length; j++) {
     if (!reqs[j][0]) continue; var id = reqs[j][0].toString();
     if (scope && (reqs[j][25] || '').toString().toLowerCase() !== scope) continue;
+    if (_coordIds && _coordIds.indexOf(id) < 0) continue;
     out.push({ id: id, title: reqs[j][1] || '', lob: reqs[j][3] || '', hm: reqs[j][7] || '',
       openings: reqs[j][9] || '', status: reqs[j][13] || '', count: counts[id] || 0 });
   }
@@ -3253,6 +3301,7 @@ function getCandidateFull(candId) {
   var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
   var v = getCandidateView(candId);
   if (v.error) return v;
+  if (_g.role === 'RecruitmentCoordinator' && getCoordinatorReqIds_(_g.email).indexOf((v.reqId || '').toString()) < 0) return { error: '🔒 Not assigned to you.' };
   try { v.interviews = getInterviews(candId); } catch (e) { v.interviews = []; }
   try { v.audit = getAudit_(candId); } catch (e) { v.audit = []; }
   try { v.appFeedback = getInterviewFeedback_(candId); } catch (e) { v.appFeedback = []; }
@@ -3347,9 +3396,42 @@ function bookInterview_(candId, stage, interviewersStr, datetimeIso, round, opts
 }
 function scheduleInterview2(o) {
   var u = currentUser_(arguments);
-  if (u.role !== 'Admin' && u.role !== 'Recruiter') return '🔒 Only recruiters/admins can schedule.';
+  if (u.role !== 'Admin' && u.role !== 'Recruiter' && u.role !== 'RecruitmentCoordinator') return '🔒 Only recruiters/admins can schedule.';
+  if (u.role === 'RecruitmentCoordinator') {
+    var _cv; try { _cv = getCandidateView(o.candId); } catch (e) { _cv = null; }
+    if (!_cv || _cv.error || getCoordinatorReqIds_(u.email).indexOf((_cv.reqId || '').toString()) < 0) return '🔒 Not assigned to this requisition.';
+  }
   var r = bookInterview_(o.candId, o.stage, o.interviewers, o.datetime, o.round, { prepPack: o.prepPack, mode: o.mode || 'Internal HR' });
   return r.error || r.message;
+}
+// ---------- COORDINATOR CALL LOG ----------
+// Structured record of a screening call a Recruitment Coordinator made with a candidate —
+// separate from interview feedback, which stays tied to a scheduled interview round.
+function callLogSheet_() {
+  var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('CallLog');
+  if (!sh) { sh = ss.insertSheet('CallLog'); sh.appendRow(['Candidate ID', 'Req ID', 'Called By', 'Called At', 'Reachable', 'Interested', 'Notice Period', 'Current CTC', 'Expected CTC', 'Availability', 'Notes']); sh.getRange(1, 1, 1, 11).setFontWeight('bold'); }
+  return sh;
+}
+function logCandidateCall(candId, fields) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  if (_g.role !== 'Admin' && _g.role !== 'Recruiter' && _g.role !== 'RecruitmentCoordinator') return { error: '🔒 Only recruiters/coordinators can log calls.' };
+  var v = getCandidateView(candId); if (v.error) return v;
+  if (_g.role === 'RecruitmentCoordinator' && getCoordinatorReqIds_(_g.email).indexOf((v.reqId || '').toString()) < 0) return { error: '🔒 Not assigned to this requisition.' };
+  var f = fields || {};
+  callLogSheet_().appendRow(sanitizeRow_([candId, v.reqId || '', _g.email, new Date(), f.reachable || '', f.interested || '', f.noticePeriod || '', f.currentCtc || '', f.expectedCtc || '', f.availability || '', f.notes || ''])); // C-2
+  return { ok: true, message: '✅ Call logged.' };
+}
+function getCandidateCallLog(candId) {
+  var _g = guard_(arguments, 'Interviewer'); if (_g.error) return { error: _g.error }; // C-1: server-side auth
+  var v = getCandidateView(candId); if (v.error) return [];
+  if (_g.role === 'RecruitmentCoordinator' && getCoordinatorReqIds_(_g.email).indexOf((v.reqId || '').toString()) < 0) return [];
+  var d = callLogSheet_().getDataRange().getValues(), out = [];
+  var tz = Session.getScriptTimeZone();
+  for (var i = 1; i < d.length; i++) if ((d[i][0] || '').toString() === candId.toString()) {
+    out.push({ calledBy: d[i][2] || '', calledAt: d[i][3] ? Utilities.formatDate(new Date(d[i][3]), tz, 'yyyy-MM-dd HH:mm') : '', reachable: d[i][4] || '', interested: d[i][5] || '', noticePeriod: d[i][6] || '', currentCtc: d[i][7] || '', expectedCtc: d[i][8] || '', availability: d[i][9] || '', notes: d[i][10] || '' });
+  }
+  out.sort(function (a, b) { return new Date(b.calledAt) - new Date(a.calledAt); });
+  return out;
 }
 function selfScheduleSheet_() {
   var ss = SpreadsheetApp.openById(SHEET_ID), sh = ss.getSheetByName('SelfSchedule');
