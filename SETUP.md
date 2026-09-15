@@ -87,6 +87,7 @@ If you have a `careers@yourcompany.com` (or any) mailbox that receives CVs:
 - **Notifications**: in-app **🏢 Company** settings — add an alerts email and/or a Google Chat webhook URL.
 - **Analytics dashboard**: in **📈 Analytics**, click *Build / refresh dashboard data*, then connect Looker Studio to the generated tab.
 - **Interview feedback SLA reminders**: in the Apps Script editor, **Triggers → Add Trigger** → function `checkInterviewSla` → Time-driven → Hour timer → every hour. Reminds the interviewer(s) after 24h of no feedback, escalates to the alerts email above after 48h (each interview at most once).
+- **Recurring sourcing-sheet sync**: link a consulting firm's sourcing sheet to a req from **Sourcing channels → Recurring sync** (after mapping columns for a one-time import), then in the Apps Script editor, **Triggers → Add Trigger** → function `syncSourceSheets` → Time-driven → Hour timer (or Day timer) → your interval. Pulls new candidates from every active link on that schedule and tags them the same way as an agency-portal submission (`Agency: <firm name>`); the firm can see their submissions' current stage on their own Sourcing Channels link (Agency.html → My submissions). One firm's broken sheet never blocks the others.
 
 ---
 
